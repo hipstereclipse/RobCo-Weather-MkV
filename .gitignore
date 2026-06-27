@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+
+.venv/
+venv/
+
+companion/weather_config.json
+companion/WEATHER.JSON
+
+.DS_Store
+Thumbs.db
