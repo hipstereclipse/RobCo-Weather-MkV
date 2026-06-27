@@ -23,6 +23,7 @@ import argparse
 import datetime
 import json
 import os
+import shutil
 import sys
 import urllib.parse
 import urllib.request
@@ -42,6 +43,16 @@ KP_AURORA_LAT = [66.5, 64.5, 62.4, 60.4, 58.3, 56.3, 54.2, 52.2, 50.1, 48.1]
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "weather_config.json")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+APP_INSTALL_FILES = [
+    (os.path.join(PROJECT_ROOT, "pipboy", "APPS", "WEATHER.JS"),
+     os.path.join("APPS", "WEATHER.JS")),
+    (os.path.join(PROJECT_ROOT, "pipboy", "APPINFO", "WEATHER.info"),
+     os.path.join("APPINFO", "WEATHER.info")),
+    (os.path.join(PROJECT_ROOT, "pipboy", "APPINFO", "WEATHER.IMG"),
+     os.path.join("APPINFO", "WEATHER.IMG")),
+]
 
 # WMO weather interpretation codes -> short description
 WMO = {
@@ -364,6 +375,27 @@ def write_payload(cfg, payload):
     if not (cfg.get("sd_path") or "").strip():
         print("    (no SD path set - copy this file to <SD>/USER/WEATHER.JSON,")
         print("     or set one with menu option [5] / --sd)")
+
+
+def install_app_files(sd_path):
+    sd = (sd_path or "").strip()
+    if not sd:
+        raise ValueError("Set the SD card root before installing app files.")
+    sd = os.path.abspath(os.path.expanduser(sd))
+    if not os.path.isdir(sd):
+        raise FileNotFoundError("SD card root not found: %s" % sd)
+
+    copied = []
+    for src, rel in APP_INSTALL_FILES:
+        if not os.path.isfile(src):
+            raise FileNotFoundError("Packaged app file not found: %s" % src)
+
+    for src, rel in APP_INSTALL_FILES:
+        dest = os.path.join(sd, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(src, dest)
+        copied.append(dest)
+    return copied
 
 
 def do_fetch(cfg):

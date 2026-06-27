@@ -35,6 +35,7 @@ The GUI lets you:
 - Remove saved locations.
 - Switch units between `F` and `C`.
 - Choose the SD card root with a folder picker.
+- Install or update the Pip-Boy app files on the selected SD card.
 - Fetch and sync to the SD card.
 - Watch progress in the built-in terminal pane.
 
@@ -119,6 +120,20 @@ companion/WEATHER.JSON
 ```
 
 The local fallback lets you copy the cache manually to the SD card later.
+
+## Quick App Install
+
+In the GUI, set the SD card root and press `INSTALL APP FILES` to copy the
+packaged Pip-Boy app files to:
+
+```text
+<sd_path>/APPS/WEATHER.JS
+<sd_path>/APPINFO/WEATHER.info
+<sd_path>/APPINFO/WEATHER.IMG
+```
+
+This only installs or updates the app code and metadata. Press
+`FETCH & SYNC DATA` separately to write `<sd_path>/USER/WEATHER.JSON`.
 
 ## Data Sources
 

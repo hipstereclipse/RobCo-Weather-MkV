@@ -31,6 +31,9 @@ FTB  = ("Consolas", 11, "bold")
 FTSM = ("Consolas", 9)
 FTBIG = ("Consolas", 22, "bold")
 
+FETCH_LABEL = ">  FETCH & SYNC DATA"
+INSTALL_LABEL = "INSTALL APP FILES"
+
 
 class App:
     def __init__(self, root):
@@ -39,6 +42,7 @@ class App:
         self.search_results = []
         self.q = queue.Queue()
         self.fetching = False
+        self.installing = False
 
         root.title("PIP-OS // WEATHER COMPANION")
         root.configure(bg=BG)
@@ -148,6 +152,10 @@ class App:
                                    accent=True)
         self.fetch_btn.configure(font=FTBIG, padx=16, pady=8)
         self.fetch_btn.pack(fill="x")
+        self.fetch_btn.configure(text=FETCH_LABEL)
+        self.install_btn = self._btn(act, INSTALL_LABEL, self.install_app)
+        self.install_btn.configure(font=FTBIG, padx=16, pady=8)
+        self.install_btn.pack(fill="x", pady=(6, 0))
 
         logf = self._frame(self.root, "TERMINAL")
         logf.pack(fill="both", expand=True, padx=14, pady=(4, 12))
@@ -232,9 +240,38 @@ class App:
             core.save_config(self.cfg)
             self.update_output_label()
 
+    # --------------------------------------------------------------- install
+    def install_app(self):
+        if self.fetching or self.installing:
+            return
+        sd = self.sd_var.get().strip()
+        if not sd:
+            self.log("Set the SD card root before installing app files.")
+            return
+        self.cfg["sd_path"] = sd
+        core.save_config(self.cfg)
+        self.update_output_label()
+        self.installing = True
+        self.install_btn.configure(state="disabled", text="INSTALLING ...")
+        self.fetch_btn.configure(state="disabled")
+        threading.Thread(target=self._install_worker, args=(sd,), daemon=True).start()
+
+    def _install_worker(self, sd):
+        try:
+            copied = core.install_app_files(sd)
+            for path in copied:
+                self.q.put(("log", "  > installed %s" % path))
+            self.q.put(("log", "APP INSTALL COMPLETE - %d file(s) copied."
+                        % len(copied)))
+            self.q.put(("log", "Reboot the Pip-Boy after installing or updating."))
+        except Exception as e:
+            self.q.put(("log", "INSTALL ERROR: %s" % e))
+        finally:
+            self.q.put(("__install_done__", None))
+
     # ---------------------------------------------------------------- fetch
     def fetch(self):
-        if self.fetching:
+        if self.fetching or self.installing:
             return
         if not self.cfg["locations"]:
             self.log("No locations configured - add some first.")
@@ -243,6 +280,7 @@ class App:
         core.save_config(self.cfg)
         self.update_output_label()
         self.fetching = True
+        self.install_btn.configure(state="disabled")
         self.fetch_btn.configure(state="disabled", text="… SYNCING …")
         threading.Thread(target=self._fetch_worker, daemon=True).start()
 
@@ -278,6 +316,15 @@ class App:
                     self.fetching = False
                     self.fetch_btn.configure(state="normal",
                                              text="▶  FETCH & SYNC TO SD")
+                    self.install_btn.configure(state="normal",
+                                               text=INSTALL_LABEL)
+                    self.fetch_btn.configure(text=FETCH_LABEL)
+                elif kind == "__install_done__":
+                    self.installing = False
+                    self.install_btn.configure(state="normal",
+                                               text=INSTALL_LABEL)
+                    self.fetch_btn.configure(state="normal",
+                                             text=FETCH_LABEL)
                 elif kind == "__search__":
                     self.search_results = payload
                     self.result_list.delete(0, "end")

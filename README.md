@@ -22,7 +22,13 @@ renders the cached data in a Fallout 3 / New Vegas style interface.
 
 ## Quick Start
 
-1. Install the Pip-Boy files on the SD card:
+1. Run the companion GUI:
+
+   ```bash
+   python companion/pipboy_weather_gui.py
+   ```
+
+2. Select the SD card root and press `INSTALL APP FILES`. This copies:
 
    ```text
    pipboy/APPS/WEATHER.JS          -> APPS/WEATHER.JS
@@ -30,14 +36,8 @@ renders the cached data in a Fallout 3 / New Vegas style interface.
    pipboy/APPINFO/WEATHER.IMG      -> APPINFO/WEATHER.IMG
    ```
 
-2. Run the companion GUI:
-
-   ```bash
-   python companion/pipboy_weather_gui.py
-   ```
-
-3. Add or reorder locations, choose `F` or `C`, select the SD card root, and
-   press `FETCH & SYNC TO SD`.
+3. Add or reorder locations, choose `F` or `C`, and press
+   `FETCH & SYNC DATA`.
 
 4. Reboot the Pip-Boy. The app appears in `ITEMS > MISC` as `Weather`.
 
