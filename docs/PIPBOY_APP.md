@@ -122,7 +122,7 @@ The app is designed for a landscape screen around 480 by 320 pixels. It reads
 differences, but the layout is tuned for the Pip-Boy 3000.
 
 The Pip-Boy glass has rounded corners that clip pixels near each corner. The
-header and footer rows are therefore inset horizontally by `CORN` (28 px) and
+header and footer rows are therefore inset horizontally by `CORN` (40 px) and
 nudged a few pixels off the top/bottom edge so their text clears the curve. If
 your unit's corners are more aggressively rounded and text still clips, increase
 `CORN` near the top of `WEATHER.JS`.

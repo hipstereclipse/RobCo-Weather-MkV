@@ -29,9 +29,11 @@ DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "sample", 
 # logical screen - the Pip-Boy 3000 app runs LANDSCAPE (~480x320 usable)
 LW, LH = 480, 320
 S = 2  # supersample factor
-CORN = 28      # horizontal inset for the top/bottom rows so the rounded
+CORN = 40      # horizontal inset for the top/bottom rows so the rounded
                # display corners do not clip the header/footer text
-R_SCREEN = 22  # screen corner radius in logical px (the rounded glass)
+               # (mirrors CORN in WEATHER.JS - keep the two in sync)
+R_SCREEN = 40  # screen corner radius in logical px (the rounded glass); models
+               # an aggressively rounded unit so the preview reveals corner clipping
 
 BG    = (1, 16, 7)
 FG    = (26, 255, 128)

@@ -32,6 +32,9 @@ FTB  = ("Consolas", 11, "bold")
 FTSM = ("Consolas", 9)
 FTBIG = ("Consolas", 22, "bold")
 
+PAD = 18   # outer margin from the window edge for every top-level row, so edge
+           # text clears the rounded window corners instead of being clipped
+
 FETCH_LABEL = "FETCH WEATHER + SPACE WX"
 FETCH_BUSY_LABEL = "FETCHING WEATHER + SPACE WX ..."
 INSTALL_LABEL = "INSTALL / UPDATE DEVICE"
@@ -79,15 +82,15 @@ class App:
     def _build(self):
         # header ------------------------------------------------------------
         head = tk.Frame(self.root, bg=BG)
-        head.pack(fill="x", padx=14, pady=(12, 4))
+        head.pack(fill="x", padx=PAD, pady=(12, 4))
         tk.Label(head, text="ROBCO WEATHER RELAY", font=FTBIG,
                  bg=BG, fg=GREEN).pack(side="left")
         tk.Label(head, text="ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL",
                  font=FTSM, bg=BG, fg=DIM).pack(side="right", pady=(10, 0))
-        tk.Frame(self.root, bg=EDGE, height=2).pack(fill="x", padx=14)
+        tk.Frame(self.root, bg=EDGE, height=2).pack(fill="x", padx=PAD)
 
         body = tk.Frame(self.root, bg=BG)
-        body.pack(fill="both", expand=True, padx=14, pady=10)
+        body.pack(fill="both", expand=True, padx=PAD, pady=10)
         body.columnconfigure(0, weight=1, uniform="col")
         body.columnconfigure(1, weight=1, uniform="col")
         body.rowconfigure(0, weight=1)
@@ -127,7 +130,7 @@ class App:
 
         # settings ----------------------------------------------------------
         setf = self._frame(self.root, "SETTINGS")
-        setf.pack(fill="x", padx=14)
+        setf.pack(fill="x", padx=PAD)
         row = tk.Frame(setf, bg=BG)
         row.pack(fill="x")
         tk.Label(row, text="UNITS", font=FTSM, bg=BG, fg=DIM).pack(side="left")
@@ -179,7 +182,7 @@ class App:
 
         # sync + log --------------------------------------------------------
         act = tk.Frame(self.root, bg=BG)
-        act.pack(fill="x", padx=14, pady=(8, 4))
+        act.pack(fill="x", padx=PAD, pady=(8, 4))
         self.fetch_btn = self._btn(act, FETCH_LABEL, self.fetch,
                                    accent=True)
         self.fetch_btn.configure(font=FTBIG, padx=16, pady=8)
@@ -190,7 +193,7 @@ class App:
         self.install_btn.pack(fill="x", pady=(6, 0))
 
         logf = self._frame(self.root, "TERMINAL")
-        logf.pack(fill="both", expand=True, padx=14, pady=(4, 12))
+        logf.pack(fill="both", expand=True, padx=PAD, pady=(4, 12))
         self.log_txt = tk.Text(logf, font=FTSM, bg=BG, fg=GREEN, bd=0,
                                highlightthickness=0, height=7, wrap="word")
         self.log_txt.pack(fill="both", expand=True)

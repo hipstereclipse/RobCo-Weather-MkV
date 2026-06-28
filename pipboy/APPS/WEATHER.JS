@@ -5,8 +5,9 @@
   var MAX_DATA = 7000;
   var STALE_HOURS = 12;
   var TABS = ["ATMOS", "5-DAY", "SOLAR"];
-  var CORN = 28; // horizontal inset for the top/bottom rows so the rounded
-                 // display corners do not clip the header/footer text.
+  var CORN = 40; // horizontal inset for the top/bottom rows so the rounded
+                 // display corners do not clip the header/footer text. Bump
+                 // this higher still if a unit's glass is even more rounded.
   var st = { d: null, e: null, l: 0, t: 0 };
 
   function gc() { try { if (global.gc) global.gc(); } catch (e) {} }
