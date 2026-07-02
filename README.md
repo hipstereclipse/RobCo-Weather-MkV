@@ -30,7 +30,7 @@ renders the cached data in a Fallout 3 / New Vegas style interface.
 
 2. Add or reorder locations and choose `F` or `C`.
 
-3. Press `INSTALL / UPDATE DEVICE`, then select the SD card root. This copies:
+3. Press `INSTALL SD + DATA`, then select the SD card root. This copies:
 
    ```text
    pipboy/APPS/WEATHER.JS          -> APPS/WEATHER.JS
@@ -39,12 +39,15 @@ renders the cached data in a Fallout 3 / New Vegas style interface.
    ```
 
    It also downloads Open-Meteo weather and NOAA SWPC space weather, then
-   writes `USER/WEATHER.JSON`.
+   writes `USER/WEATHER.JSON`. If you prefer serial transfer, use
+   `USB INSTALL + DATA` to send the app files and fresh cache over USB.
 
 4. Reboot the Pip-Boy. The app appears in `ITEMS > MISC` as `Weather`.
 
 The companion writes the cache to `<SD>/USER/WEATHER.JSON`. If no SD path is
 set, it writes `companion/WEATHER.JSON` so you can copy it manually.
+The data-only sync actions scan for the Weather app first and offer to install
+the latest app files when they are missing.
 
 ## Previews
 

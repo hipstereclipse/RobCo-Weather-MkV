@@ -40,9 +40,9 @@ there to make manual testing easier.
 
 | Control | Action |
 | --- | --- |
-| Scroll wheel rotate | Change selected location. |
-| Scroll wheel press | Advance to the next view. |
-| Thumbwheel rotate | Change view. |
+| Scroll wheel rotate | Change selected location in site mode, or selected on-screen item in item mode. |
+| Scroll wheel press | Toggle between site mode and item mode. |
+| Top corner knob 2 rotate/press | Change view. |
 | ITEMS button | Exit the app. |
 
 The app registers `notDefault: true`, so the Pip-Boy shell handles exiting
@@ -69,6 +69,8 @@ The `ATMOS` view shows:
 - UV index labeled as `RAD UV` for flavor.
 - Observed timestamp.
 - Compact solar activity line when space-weather data exists.
+- Selectable telemetry rows for apparent temperature, wind, humidity, and UV;
+  item mode shows a compact detail strip for the selected row.
 
 If aurora is possible or likely for the selected location, the solar line also
 shows the aurora status.
@@ -81,6 +83,8 @@ The `5-DAY` view shows a 5-day terminal buffer:
 - Weather icon.
 - High/low temperatures.
 - Precipitation probability.
+- A selected-day detail strip. Press the scroll wheel to enter item mode, then
+  rotate it to inspect individual forecast days without changing city.
 
 The companion currently writes five forecast days.
 
@@ -95,6 +99,7 @@ The `SOLAR` view shows:
 - 3-day Kp forecast graph.
 - Per-location aurora threshold line.
 - Aurora verdict for the selected location.
+- Selectable Kp forecast slots in item mode.
 
 Aurora estimates use geographic latitude and a simple Kp-to-viewing-latitude
 table. Treat them as a fun guide, not a scientific guarantee.
@@ -122,10 +127,10 @@ The app is designed for a landscape screen around 480 by 320 pixels. It reads
 differences, but the layout is tuned for the Pip-Boy 3000.
 
 The Pip-Boy glass has rounded corners that clip pixels near each corner. The
-header and footer rows are therefore inset horizontally by `CORN` (40 px) and
-nudged a few pixels off the top/bottom edge so their text clears the curve. If
-your unit's corners are more aggressively rounded and text still clips, increase
-`CORN` near the top of `WEATHER.JS`.
+header and footer rows are therefore inset horizontally by `CORN` (56 px) and
+nudged down/up with `TOP` and `FOOT` so their text clears the curve. If your
+unit's corners are more aggressively rounded and text still clips, increase
+`CORN` or `FOOT` near the top of `WEATHER.JS`.
 
 The app resolves the graphics object defensively:
 

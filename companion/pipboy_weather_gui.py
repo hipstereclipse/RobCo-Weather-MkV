@@ -22,12 +22,11 @@ import math
 import os
 import shutil
 import sys
-import tempfile
 import time
 import queue
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 
 import pipboy_weather as core
 try:
@@ -61,12 +60,14 @@ FTACT = ("Consolas", 11, "bold")   # compact action-bar buttons
 PAD = 14   # outer margin from the window edge for top-level rows, so edge text
            # clears the rounded window corners instead of being clipped
 
-FETCH_LABEL = "FETCH WEATHER + SPACE WX"
-FETCH_BUSY_LABEL = "FETCHING WEATHER + SPACE WX ..."
-INSTALL_LABEL = "INSTALL / UPDATE DEVICE"
-INSTALL_BUSY_LABEL = "INSTALLING + SYNCING ..."
-USB_LABEL = "SEND DATA VIA USB"
-USB_BUSY_LABEL = "SENDING OVER USB ..."
+FETCH_LABEL = "FETCH DATA ONLY"
+FETCH_BUSY_LABEL = "FETCHING DATA ..."
+INSTALL_LABEL = "INSTALL SD + DATA"
+INSTALL_BUSY_LABEL = "INSTALLING SD ..."
+USB_LABEL = "USB DATA ONLY"
+USB_BUSY_LABEL = "SENDING USB DATA ..."
+USB_INSTALL_LABEL = "USB INSTALL + DATA"
+USB_INSTALL_BUSY_LABEL = "INSTALLING VIA USB ..."
 
 # --- device logical screen (the Pip-Boy 3000 runs LANDSCAPE ~480x320) -------
 DEV_W, DEV_H = 480, 320
@@ -659,15 +660,19 @@ class App:
         act.columnconfigure(0, weight=1, uniform="act")
         act.columnconfigure(1, weight=1, uniform="act")
         act.columnconfigure(2, weight=1, uniform="act")
+        act.columnconfigure(3, weight=1, uniform="act")
         self.fetch_btn = self._btn(act, FETCH_LABEL, self.fetch, accent=True)
         self.fetch_btn.configure(font=FTACT, padx=8, pady=5)
-        self.fetch_btn.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.fetch_btn.grid(row=0, column=0, sticky="ew", padx=(0, 3))
         self.install_btn = self._btn(act, INSTALL_LABEL, self.install_app)
         self.install_btn.configure(font=FTACT, padx=8, pady=5)
-        self.install_btn.grid(row=0, column=1, sticky="ew", padx=4)
+        self.install_btn.grid(row=0, column=1, sticky="ew", padx=3)
         self.usb_btn = self._btn(act, USB_LABEL, self.usb_sync)
         self.usb_btn.configure(font=FTACT, padx=8, pady=5)
-        self.usb_btn.grid(row=0, column=2, sticky="ew", padx=(4, 0))
+        self.usb_btn.grid(row=0, column=2, sticky="ew", padx=3)
+        self.usb_install_btn = self._btn(act, USB_INSTALL_LABEL, self.usb_install)
+        self.usb_install_btn.configure(font=FTACT, padx=8, pady=5)
+        self.usb_install_btn.grid(row=0, column=3, sticky="ew", padx=(3, 0))
 
         # terminal log (shared, always visible under the tabs) --------------
         logf = self._frame(self.root, "TERMINAL")
@@ -955,9 +960,17 @@ class App:
                 text="APP FILES  <-  "
                      + (d if d else "%s  (bundled)" % core.PROJECT_ROOT))
 
+    def prompt_latest_install(self, target, missing):
+        names = "\n".join("  - " + m.replace("\\", "/") for m in missing)
+        return messagebox.askyesno(
+            "Weather app not found",
+            "The Weather app files were not found on %s.\n\n%s\n\n"
+            "Install the latest Weather app with this sync?" % (target, names),
+            parent=self.root)
+
     # --------------------------------------------------------------- install
     def install_app(self):
-        if self.fetching or self.installing:
+        if self.fetching or self.installing or self.usb_busy:
             return
         if not self.cfg["locations"]:
             self.log("No locations configured - add some first.")
@@ -975,6 +988,7 @@ class App:
         self.install_btn.configure(state="disabled", text=INSTALL_BUSY_LABEL)
         self.fetch_btn.configure(state="disabled")
         self.usb_btn.configure(state="disabled")
+        self.usb_install_btn.configure(state="disabled")
         threading.Thread(target=self._install_worker, args=(cfg,), daemon=True).start()
 
     def _install_worker(self, cfg):
@@ -986,23 +1000,12 @@ class App:
             print("  > SD card root: %s" % cfg["sd_path"])
 
             # 1. resolve the app files from the chosen source
-            if cfg.get("app_source") == "github":
-                files, tmp = core.download_app_files()
-            else:
-                src_dir = (cfg.get("app_source_dir") or "").strip() or core.PROJECT_ROOT
-                tag = "" if (cfg.get("app_source_dir") or "").strip() else "  (bundled)"
-                print("  > source: local folder %s%s" % (src_dir, tag))
-                files = core.find_app_files(src_dir)
+            files, tmp = core.app_files_from_config(cfg)
 
             # 2. copy them onto the card, reporting what actually changed
             print("  > installing %d app file(s) ..." % len(files))
             results = core.install_app_files(cfg["sd_path"], files)
-            for dest, rel, status, size in results:
-                print("  > %-9s %-22s %6d bytes" % (status.upper(), rel, size))
-            changed = sum(1 for r in results if r[2] != "unchanged")
-            print("  > app files: %d changed, %d unchanged -> %s"
-                  % (changed, len(results) - changed,
-                     os.path.dirname(os.path.dirname(results[0][0]))))
+            core.print_install_results(results)
 
             # 3. sync the latest weather payload alongside the app
             print("  > fetching weather + NOAA SWPC space weather ...")
@@ -1028,7 +1031,7 @@ class App:
 
     # ---------------------------------------------------------------- fetch
     def fetch(self):
-        if self.fetching or self.installing:
+        if self.fetching or self.installing or self.usb_busy:
             return
         if not self.cfg["locations"]:
             self.log("No locations configured - add some first.")
@@ -1036,32 +1039,68 @@ class App:
         self.cfg["sd_path"] = self.sd_var.get().strip()
         core.save_config(self.cfg)
         self.update_output_label()
+        install_latest = False
+        if self.cfg["sd_path"]:
+            try:
+                missing = core.missing_sd_app_files(self.cfg["sd_path"])
+            except Exception as e:
+                self.log("Could not scan for Weather app files: %s" % e)
+                missing = []
+            if missing:
+                install_latest = self.prompt_latest_install("the selected SD card", missing)
         self.fetching = True
         self.install_btn.configure(state="disabled")
         self.fetch_btn.configure(state="disabled", text=FETCH_BUSY_LABEL)
         self.usb_btn.configure(state="disabled")
-        threading.Thread(target=self._fetch_worker, daemon=True).start()
+        self.usb_install_btn.configure(state="disabled")
+        threading.Thread(target=self._fetch_worker, args=(install_latest,),
+                         daemon=True).start()
 
-    def _fetch_worker(self):
+    def _fetch_worker(self, install_latest=False):
         old = sys.stdout
         sys.stdout = _QWriter(self.q)
+        tmp_app = None
         try:
+            if install_latest:
+                print("==== INSTALL LATEST + DATA SYNC ====")
+                files, tmp_app = core.app_files_from_config(self.cfg, latest=True)
+                print("  > installing %d app file(s) ..." % len(files))
+                core.print_install_results(
+                    core.install_app_files(self.cfg["sd_path"], files))
             payload = core.build_payload(self.cfg)
             if payload["locations"]:
                 core.write_payload(self.cfg, payload)
                 self.q.put(("__payload__", payload))
-                print("SYNC COMPLETE - %d location(s) cached."
-                      % len(payload["locations"]))
+                if install_latest:
+                    print("INSTALL + SYNC COMPLETE - app files plus %d location(s) cached."
+                          % len(payload["locations"]))
+                else:
+                    print("SYNC COMPLETE - %d location(s) cached."
+                          % len(payload["locations"]))
             else:
                 print("Nothing fetched - check your connection.")
         except Exception as e:
             print("ERROR: %s" % e)
         finally:
+            if tmp_app:
+                shutil.rmtree(tmp_app, ignore_errors=True)
             sys.stdout = old
             self.q.put(("__done__", None))
 
     # ------------------------------------------------------------ USB sync
-    def usb_sync(self):
+    def usb_install(self):
+        self.usb_sync(install=True)
+
+    def ask_latest_install_from_worker(self, target, missing):
+        reply = queue.Queue(maxsize=1)
+        self.q.put(("__ask_install_latest__", {
+            "target": target,
+            "missing": missing,
+            "reply": reply,
+        }))
+        return bool(reply.get())
+
+    def usb_sync(self, install=False):
         if self.fetching or self.installing or self.usb_busy:
             return
         if not self.cfg["locations"]:
@@ -1071,44 +1110,87 @@ class App:
             self.log("USB transfer needs pipboy_serial.py beside this app "
                      "and the pyserial package (pip install pyserial).")
             return
+        self.on_source()
         cfg = dict(self.cfg)
         cfg["locations"] = list(self.cfg.get("locations", []))
+        cfg["app_source"] = self.source_var.get()
+        cfg["app_source_dir"] = self.appdir_var.get().strip()
         self.usb_busy = True
-        self.usb_btn.configure(state="disabled", text=USB_BUSY_LABEL)
+        if install:
+            self.usb_install_btn.configure(state="disabled", text=USB_INSTALL_BUSY_LABEL)
+            self.usb_btn.configure(state="disabled")
+        else:
+            self.usb_btn.configure(state="disabled", text=USB_BUSY_LABEL)
+            self.usb_install_btn.configure(state="disabled")
         self.fetch_btn.configure(state="disabled")
         self.install_btn.configure(state="disabled")
-        threading.Thread(target=self._usb_worker, args=(cfg,), daemon=True).start()
+        threading.Thread(target=self._usb_worker, args=(cfg, install),
+                         daemon=True).start()
 
-    def _usb_worker(self, cfg):
+    def _usb_worker(self, cfg, install=False):
         old = sys.stdout
         sys.stdout = _QWriter(self.q)
         tmp = None
+        tmp_app = None
+        port = None
+        install_latest = False
         try:
-            print("==== USB TRANSFER ====")
+            print("==== USB INSTALL / UPDATE ====" if install else "==== USB DATA SYNC ====")
+            if install:
+                print("  > checking USB port before fetching weather ...")
+                port = pbserial.find_pipboy()
+                print("  > USB device found on %s." % port)
+            else:
+                print("  > scanning USB device for Weather app files ...")
+                scan = pbserial.scan_files(core.usb_app_file_paths())
+                port = scan["port"]
+                if scan["missing"]:
+                    print("  ! Weather app files are missing on the Pip-Boy:")
+                    for rel in scan["missing"]:
+                        print("    - %s" % rel)
+                    install_latest = self.ask_latest_install_from_worker(
+                        "the USB-connected Pip-Boy", scan["missing"])
+                    if install_latest:
+                        print("  > latest app files will be sent with this sync.")
+                    else:
+                        print("  > continuing with weather data only.")
+                else:
+                    print("  > Weather app found on %s (%s)."
+                          % (scan["port"], scan["board"]))
+
             payload = core.build_payload(cfg)
             if not payload["locations"]:
                 print("Nothing fetched - check your connection.")
                 return
             self.q.put(("__payload__", payload))
-            tmp = tempfile.mktemp(prefix="weather_", suffix=".json")
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(payload, f, separators=(",", ":"))
-            size = os.path.getsize(tmp)
+            tmp, size = core.write_temp_payload(payload)
             print("  > payload: %d location(s), %d bytes"
                   % (len(payload["locations"]), size))
             if size > core.DEVICE_JSON_LIMIT:
                 print("  ! cache is large for the Pip-Boy app; remove locations and sync again")
+
+            pairs = []
+            if install or install_latest:
+                try:
+                    files, tmp_app = core.app_files_from_config(cfg, latest=install_latest)
+                    pairs.extend((src, rel.replace("\\", "/")) for src, rel in files)
+                except Exception as e:
+                    if install:
+                        raise
+                    print("  ! latest app install unavailable: %s" % e)
+                    print("  > sending weather data only.")
+            pairs.append((tmp, "USER/WEATHER.JSON"))
             print("  > looking for a USB-connected Pip-Boy ...")
 
-            last = [-1]
+            last = {}
             def prog(name, done, total):
                 pct = 100 * done // total if total else 100
-                if pct >= last[0] + 20 or pct >= 100:
-                    last[0] = pct
+                prev = last.get(name, -1)
+                if pct >= prev + 20 or pct >= 100:
+                    last[name] = pct
                     self.q.put(("log", "  > sending %s ... %d%%" % (name, pct)))
 
-            res = pbserial.transfer_files(
-                [(tmp, "USER/WEATHER.JSON")], progress=prog)
+            res = pbserial.transfer_files(pairs, port=port, progress=prog)
             print("  > device: %s on %s" % (res["board"], res["port"]))
             for r in res["files"]:
                 state = ("verified" if r["verified"] else
@@ -1116,7 +1198,10 @@ class App:
                 print("    %s  %d bytes  %s" % (r["path"], r["bytes"], state))
             if not payload.get("space"):
                 print("  (space-weather endpoints were unavailable; weather data was still sent)")
-            print("USB TRANSFER COMPLETE - open (or reopen) Weather on the Pip-Boy.")
+            if install or install_latest:
+                print("USB INSTALL COMPLETE - reboot the Pip-Boy, then open Weather.")
+            else:
+                print("USB TRANSFER COMPLETE - open (or reopen) Weather on the Pip-Boy.")
         except (pbserial.SerialUnavailable, pbserial.PipBoyNotFound,
                 pbserial.TransferError) as e:
             print("USB TRANSFER FAILED: %s" % e)
@@ -1128,6 +1213,8 @@ class App:
                     os.remove(tmp)
                 except OSError:
                     pass
+            if tmp_app:
+                shutil.rmtree(tmp_app, ignore_errors=True)
             sys.stdout = old
             self.q.put(("__usb_done__", None))
 
@@ -1147,20 +1234,27 @@ class App:
                     self.fetch_btn.configure(state="normal", text=FETCH_LABEL)
                     self.install_btn.configure(state="normal", text=INSTALL_LABEL)
                     self.usb_btn.configure(state="normal", text=USB_LABEL)
+                    self.usb_install_btn.configure(state="normal", text=USB_INSTALL_LABEL)
                 elif kind == "__install_done__":
                     self.installing = False
                     self.install_btn.configure(state="normal", text=INSTALL_LABEL)
                     self.fetch_btn.configure(state="normal", text=FETCH_LABEL)
                     self.usb_btn.configure(state="normal", text=USB_LABEL)
+                    self.usb_install_btn.configure(state="normal", text=USB_INSTALL_LABEL)
                 elif kind == "__usb_done__":
                     self.usb_busy = False
                     self.usb_btn.configure(state="normal", text=USB_LABEL)
+                    self.usb_install_btn.configure(state="normal", text=USB_INSTALL_LABEL)
                     self.fetch_btn.configure(state="normal", text=FETCH_LABEL)
                     self.install_btn.configure(state="normal", text=INSTALL_LABEL)
                 elif kind == "__payload__":
                     self.preview.set_payload(payload)
                     self._refresh_preview_status()
                     self.nb.select(self.preview_tab)
+                elif kind == "__ask_install_latest__":
+                    answer = self.prompt_latest_install(payload["target"],
+                                                        payload["missing"])
+                    payload["reply"].put(answer)
                 elif kind == "__search__":
                     self.search_results = payload
                     self.result_list.delete(0, "end")

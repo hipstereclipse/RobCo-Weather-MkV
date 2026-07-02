@@ -119,11 +119,13 @@ _BOARD = ["PIPBOY"]
 _BROKEN = [set()]
 _WRONGLEN = [False]
 _LAST = [None]
+_INITIAL_FS = [{}]
 
 
 def _Serial(port, baud=9600, timeout=0, write_timeout=0):
     dev = FakeEspruino(port, baud, echo=_ECHO[0], board=_BOARD[0],
                        broken=set(_BROKEN[0]))
+    dev.fs.update(_INITIAL_FS[0])
     dev.wrong_len = _WRONGLEN[0]
     _LAST[0] = dev
     return dev
@@ -263,6 +265,25 @@ def main():
     assert cands[0]["device"] == "COM_TEST", cands
     print("   ok - top candidate: %s (score=%d)"
           % (cands[0]["device"], cands[0]["score"]))
+    _INITIAL_FS[0] = {}
+
+    print("9) scan_files() reports missing and present app files ...")
+    _INITIAL_FS[0] = {
+        "APPS/WEATHER.JS": b"app",
+        "APPINFO/WEATHER.info": b"info",
+    }
+    scan = pbs.scan_files([
+        "APPS/WEATHER.JS",
+        "APPINFO/WEATHER.info",
+        "APPINFO/WEATHER.IMG",
+    ], port="COM_TEST")
+    assert scan["port"] == "COM_TEST"
+    assert scan["board"] == "PIPBOY"
+    assert scan["missing"] == ["APPINFO/WEATHER.IMG"], scan
+    assert scan["files"][0]["exists"] is True
+    assert scan["files"][2]["exists"] is False
+    print("   ok - missing: %s" % ", ".join(scan["missing"]))
+    _INITIAL_FS[0] = {}
 
     print("\nALL TESTS PASSED")
     return 0

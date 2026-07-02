@@ -5,10 +5,12 @@
   var MAX_DATA = 7000;
   var STALE_HOURS = 12;
   var TABS = ["ATMOS", "5-DAY", "SOLAR"];
-  var CORN = 40; // horizontal inset for the top/bottom rows so the rounded
+  var CORN = 56; // horizontal inset for the top/bottom rows so the rounded
                  // display corners do not clip the header/footer text. Bump
                  // this higher still if a unit's glass is even more rounded.
-  var st = { d: null, e: null, l: 0, t: 0 };
+  var TOP = 10;
+  var FOOT = 26;
+  var st = { d: null, e: null, l: 0, t: 0, m: 0, a: 0, f: 0, k: 0 };
 
   function gc() { try { if (global.gc) global.gc(); } catch (e) {} }
   function W() { return G.getWidth ? G.getWidth() : 480; }
@@ -60,7 +62,7 @@
   }
   function scanMask() {
     var y, w = W(), h = H();
-    for (y = 31; y < h - 26; y += 8) G.clearRect(8, y, w - 8, y);
+    for (y = 33; y < h - 32; y += 8) G.clearRect(8, y, w - 8, y);
     G.drawRect(3, 3, w - 4, h - 4);
   }
   function hr(y) { G.drawLine(12, y, W() - 12, y); }
@@ -117,29 +119,60 @@
     }
   }
 
+  function itemCount(loc) {
+    var n = 1, sp;
+    if (st.t === 0) return 4;
+    if (st.t === 1) {
+      n = loc && loc.daily ? loc.daily.length : 0;
+      return Math.max(1, Math.min(5, n));
+    }
+    sp = st.d && st.d.space;
+    n = sp && sp.kpf ? sp.kpf.length : 0;
+    return Math.max(1, Math.min(24, n));
+  }
+  function sel() {
+    return st.t === 0 ? st.a : st.t === 1 ? st.f : st.k;
+  }
+  function setSel(v, loc) {
+    var n = itemCount(loc);
+    v = (v + n) % n;
+    if (st.t === 0) st.a = v;
+    else if (st.t === 1) st.f = v;
+    else st.k = v;
+  }
+  function clampSel(loc) { setSel(sel(), loc); }
+  function hilite(x0, y0, x1, y1, on) {
+    if (on) G.drawRect(x0, y0, x1, y1);
+  }
   function header() {
+    var loc, n, p;
     font(0);
-    if (st.d && stale()) text("! CACHE " + ageLabel(ageHours()) + " OLD - SYNC", CORN, 6, -1, -1);
-    else text("ROBCO INDUSTRIES (TM) TERMLINK", CORN, 6, -1, -1);
-    if (st.d) text("ATMOS [" + (st.l + 1) + "/" + st.d.locations.length + "]", W() - CORN, 6, 1, -1);
-    hr(18);
+    if (st.d && stale()) text("! CACHE " + ageLabel(ageHours()) + " OLD - SYNC", CORN, TOP, -1, -1);
+    else text("ROBCO INDUSTRIES (TM) TERMLINK", CORN, TOP, -1, -1);
+    if (st.d) {
+      loc = st.d.locations[st.l] || {};
+      n = st.m ? itemCount(loc) : st.d.locations.length;
+      p = st.m ? sel() + 1 : st.l + 1;
+      text((st.m ? "ITEM" : "SITE") + " [" + p + "/" + n + "]", W() - CORN, TOP, 1, -1);
+    }
+    hr(24);
   }
   function footer() {
-    var y = H() - 16;
-    hr(y - 4);
+    var y = H() - FOOT;
+    hr(y - 6);
     font(0);
-    text("WHEEL:SITE  THUMB:PAGE  ITEMS:EXIT", CORN, y, -1, -1);
+    text(st.m ? "WHEEL:ITEM PUSH:SITE K2:VIEW" : "WHEEL:SITE PUSH:ITEM K2:VIEW", CORN, y, -1, -1);
     if (st.d && st.d.generated) text((stale() ? "! " : "UPD ") + stamp(st.d.generated), W() - CORN, y, 1, -1);
   }
   function title(loc) {
     font(1);
-    text(cut((loc.name || "UNKNOWN").toUpperCase(), 24), CORN, 24, -1, -1);
+    text(cut((loc.name || "UNKNOWN").toUpperCase(), 24), CORN, 32, -1, -1);
     font(0);
-    if (loc.region) text(cut((loc.region || "").toUpperCase(), 30), CORN, 43, -1, -1);
-    text("SITE " + locAddr(), W() - CORN, 43, 1, -1);
+    if (loc.region) text(cut((loc.region || "").toUpperCase(), 30), CORN, 51, -1, -1);
+    text("SITE " + locAddr(), W() - CORN, 51, 1, -1);
   }
   function tabs() {
-    var y = 58, bw = (W() - 24) / TABS.length, i, x, label;
+    var y = 66, bw = (W() - 24) / TABS.length, i, x, label;
     font(0);
     for (i = 0; i < TABS.length; i++) {
       x = 12 + i * bw;
@@ -147,7 +180,7 @@
       label = (i === st.t ? "> " : "  ") + TABS[i];
       text(label, x + bw / 2, y + 8, 0, 0);
     }
-    hr(77);
+    hr(85);
   }
   function msg(a, b) {
     font(2);
@@ -161,20 +194,43 @@
     font(1);
     text(unit(), x + 14, y + 6, -1, 0);
   }
+  function disk(cx, cy, r) {
+    try { G.fillCircle(cx, cy, r); }
+    catch (e) { G.fillRect(cx - r, cy - r, cx + r, cy + r); }
+  }
+  function bolt(cx, cy, r) {
+    try {
+      G.fillPoly([cx, cy + r / 4, cx - r / 3, cy + r / 4, cx - 1, cy + r,
+        cx + r / 4, cy + r / 2, cx + r / 2, cy + r / 2, cx + r / 8, cy + r * 7 / 5]);
+    } catch (e) {
+      G.drawLine(cx, cy + r / 4, cx - r / 3, cy + r);
+      G.drawLine(cx - r / 3, cy + r, cx + r / 5, cy + r / 2);
+      G.drawLine(cx + r / 5, cy + r / 2, cx, cy + r * 7 / 5);
+    }
+  }
+  function thick(x0, y0, x1, y1) {
+    G.drawLine(x0, y0, x1, y1);
+    G.drawLine(x0 + 1, y0, x1 + 1, y1);
+  }
   function sun(cx, cy, r) {
     var i, a;
+    disk(cx, cy, Math.max(3, r * 2 / 3));
     G.drawCircle(cx, cy, r);
     for (i = 0; i < 8; i++) {
       a = i * Math.PI / 4;
-      G.drawLine(cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4),
+      thick(cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4),
         cx + Math.cos(a) * (r + 11), cy + Math.sin(a) * (r + 11));
     }
   }
   function cloud(cx, cy, r) {
+    disk(cx - r / 2, cy + 2, r / 2);
+    disk(cx + r / 2, cy + 2, r / 2);
+    disk(cx, cy - 4, r / 2 + 3);
+    G.fillRect(cx - r, cy + 2, cx + r, cy + r / 2 + 2);
     G.drawCircle(cx - r / 2, cy + 2, r / 2);
     G.drawCircle(cx + r / 2, cy + 2, r / 2);
     G.drawCircle(cx, cy - 4, r / 2 + 3);
-    G.drawLine(cx - r, cy + r / 2, cx + r, cy + r / 2);
+    thick(cx - r, cy + r / 2 + 2, cx + r, cy + r / 2 + 2);
   }
   function wxIcon(code, cx, cy, r) {
     var i, x;
@@ -185,20 +241,18 @@
     if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
       for (i = -1; i <= 1; i++) {
         x = cx + i * 8;
-        G.drawLine(x, cy + r, x - 4, cy + r + 12);
+        thick(x, cy + r, x - 4, cy + r + 12);
       }
     } else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
       for (i = -1; i <= 1; i++) {
         x = cx + i * 8;
-        G.drawLine(x - 4, cy + r + 6, x + 4, cy + r + 6);
-        G.drawLine(x, cy + r + 2, x, cy + r + 10);
+        thick(x - 4, cy + r + 6, x + 4, cy + r + 6);
+        thick(x, cy + r + 2, x, cy + r + 10);
       }
     } else if (code >= 95) {
-      G.drawLine(cx, cy + r - 3, cx - 8, cy + r + 15);
-      G.drawLine(cx - 8, cy + r + 15, cx + 3, cy + r + 8);
-      G.drawLine(cx + 3, cy + r + 8, cx - 2, cy + r + 23);
+      bolt(cx, cy, r);
     } else if (code === 45 || code === 48) {
-      for (i = 0; i < 3; i++) G.drawLine(cx - r, cy + r + i * 6, cx + r, cy + r + i * 6);
+      for (i = 0; i < 3; i++) thick(cx - r, cy + r + i * 6, cx + r, cy + r + i * 6);
     }
   }
   function rowAt(label, val, xL, xR, y) {
@@ -206,9 +260,6 @@
     text(label, xL, y, -1, 0);
     font(1);
     text(val, xR, y, 1, 0);
-  }
-  function row(label, val, y) {
-    rowAt(label, val, 258, W() - 14, y);
   }
   function solarLine(loc) {
     var sp = st.d.space, au = loc.aurora, s;
@@ -219,64 +270,79 @@
     return s;
   }
   function current(loc) {
-    var c = loc.current || {}, d0 = (loc.daily && loc.daily[0]) || {};
-    box(14, 88, 236, 255, "LOCAL ATMOS");
-    box(248, 88, W() - 14, 255, "INSTRUMENTS");
+    var c = loc.current || {}, d0 = (loc.daily && loc.daily[0]) || {}, detail;
+    box(14, 96, 236, 246, "LOCAL ATMOS");
+    box(248, 96, W() - 14, 246, "INSTRUMENTS");
 
-    wxIcon(c.code, 70, 135, 24);
+    wxIcon(c.code, 70, 136, 24);
     font(3);
     G.setFontAlign(-1, 0);
-    G.drawString(num(c.temp), 118, 145);
+    G.drawString(num(c.temp), 118, 144);
     degree(205, 124);
 
     font(0);
-    text("> CONDITION", 24, 184, -1, -1);
+    text("> CONDITION", 24, 181, -1, -1);
     font(1);
-    text(cut((c.desc || "--").toUpperCase(), 18), 24, 203, -1, -1);
+    text(cut((c.desc || "--").toUpperCase(), 18), 24, 199, -1, -1);
     font(0);
     text("HI/LO " + (d0.hi === undefined ? "--" : Math.round(d0.hi)) + "/" +
       (d0.lo === undefined ? "--" : Math.round(d0.lo)) + "  RAIN " +
-      (d0.pop === undefined ? "--" : Math.round(d0.pop)) + "%", 24, 228, -1, -1);
-    if (c.time) text("OBS " + stamp(c.time), 24, 243, -1, -1);
+      (d0.pop === undefined ? "--" : Math.round(d0.pop)) + "%", 24, 219, -1, -1);
+    if (c.time) text("OBS " + stamp(c.time), 24, 231, -1, -1);
 
-    rowAt("FEELS", num(c.feels) + unit(), 260, W() - 26, 112);
-    rowAt("WIND", num(c.wind) + (c.dir ? " " + c.dir : ""), 260, W() - 26, 146);
-    rowAt("HUMID", num(c.humidity) + "%", 260, W() - 26, 180);
-    gauge(260, 192, W() - 286, c.humidity, 100);
-    rowAt("RAD UV", num(c.uv), 260, W() - 26, 220);
-    gauge(260, 232, W() - 286, c.uv, 11);
+    hilite(254, 104, W() - 20, 127, st.t === 0 && st.a === 0);
+    rowAt("FEELS", num(c.feels) + unit(), 262, W() - 26, 116);
+    hilite(254, 134, W() - 20, 157, st.t === 0 && st.a === 1);
+    rowAt("WIND", num(c.wind) + (c.dir ? " " + c.dir : ""), 262, W() - 26, 146);
+    hilite(254, 164, W() - 20, 193, st.t === 0 && st.a === 2);
+    rowAt("HUMID", num(c.humidity) + "%", 262, W() - 26, 176);
+    gauge(262, 188, W() - 288, c.humidity, 100);
+    hilite(254, 202, W() - 20, 233, st.t === 0 && st.a === 3);
+    rowAt("RAD UV", num(c.uv), 262, W() - 26, 214);
+    gauge(262, 226, W() - 288, c.uv, 11);
 
-    box(14, 262, W() - 14, 286, "RELAY");
+    if (st.a === 0) detail = "APPARENT TEMP " + num(c.feels) + unit() + "  ACTUAL " + num(c.temp) + unit();
+    else if (st.a === 1) detail = "SURFACE WIND " + num(c.wind) + (c.dir ? " " + c.dir : "") + " " + ((st.d.units && st.d.units.wind) || "");
+    else if (st.a === 2) detail = "HUMIDITY " + num(c.humidity) + "%  PRECIP " + (d0.pop === undefined ? "--" : Math.round(d0.pop)) + "%";
+    else detail = "RAD UV " + num(c.uv) + "  " + (solarLine(loc) || "SOLAR RELAY QUIET");
+    box(14, 250, W() - 14, 282, "SELECTED TELEMETRY");
     font(0);
-    text(cut(solarLine(loc) || "SOLAR RELAY UNAVAILABLE", 58), 24, 274, -1, 0);
+    text(cut(detail, 63), 24, 266, -1, 0);
   }
 
   function forecast(loc) {
     var days = loc.daily || [], n = Math.min(days.length, 5), cw = (W() - 24) / 5;
     var i, d, x, cx, hi, lo;
-    box(14, 88, W() - 14, 286, "FORECAST BUFFER");
+    if (st.f >= n && n > 0) st.f = n - 1;
+    box(14, 96, W() - 14, 222, "FORECAST BUFFER");
     font(0);
-    text("5 ENTRIES  //  HI/LO  //  PRECIP CHANCE", 26, 103, -1, -1);
+    text("5 ENTRIES  //  SELECT DAY WITH WHEEL", 26, 111, -1, -1);
     for (i = 0; i < n; i++) {
       d = days[i] || {};
       x = 12 + i * cw;
       cx = x + cw / 2;
-      if (i > 0) G.drawLine(x, 126, x, 274);
+      if (i > 0) G.drawLine(x, 126, x, 216);
+      hilite(x + 4, 122, x + cw - 4, 216, i === st.f);
       font(0);
-      text(padHex(0xB000 + i * 0x10), cx, 119, 0, -1);
+      text(padHex(0xB000 + i * 0x10), cx, 129, 0, -1);
       font(1);
-      text(d.d || ("D" + (i + 1)), cx, 138, 0, -1);
-      wxIcon(d.code, cx, 166, 17);
+      text(d.d || ("D" + (i + 1)), cx, 146, 0, -1);
+      wxIcon(d.code, cx, 169, 15);
       font(0);
-      text(cut((d.desc || "--").toUpperCase(), 10), cx, 198, 0, -1);
+      text(cut((d.desc || "--").toUpperCase(), 9), cx, 192, 0, -1);
       hi = d.hi === undefined ? "--" : Math.round(d.hi);
       lo = d.lo === undefined ? "--" : Math.round(d.lo);
-      font(1);
-      text(hi + "/" + lo, cx, 218, 0, -1);
-      font(0);
-      text((d.pop === undefined ? "--" : Math.round(d.pop)) + "%", cx, 246, 0, -1);
-      gauge(x + 13, 263, cw - 26, d.pop, 100);
+      text(hi + "/" + lo + " " + (d.pop === undefined ? "--" : Math.round(d.pop)) + "%", cx, 207, 0, -1);
     }
+    d = days[st.f] || {};
+    hi = d.hi === undefined ? "--" : Math.round(d.hi);
+    lo = d.lo === undefined ? "--" : Math.round(d.lo);
+    box(14, 232, W() - 14, 282, "ENTRY DETAIL");
+    font(0);
+    text((d.date || d.d || ("D" + (st.f + 1))) + "  " + cut((d.desc || "--").toUpperCase(), 20), 24, 247, -1, -1);
+    font(1);
+    text("HI/LO " + hi + "/" + lo, 24, 268, -1, 0);
+    text("RAIN " + (d.pop === undefined ? "--" : Math.round(d.pop)) + "%", W() - 24, 268, 1, 0);
   }
 
   function kpGraph(sp, loc, x0, y0, x1, y1) {
@@ -294,6 +360,7 @@
       bx1 = x0 + (i + 1) * bw - 1;
       if (k[i] >= need) G.fillRect(bx0, y, bx1, base - 1);
       else G.drawRect(bx0, y, bx1, base - 1);
+      if (i === st.k) G.drawRect(bx0 - 1, y - 2, bx1 + 1, base);
     }
     if (need <= 9) {
       ty = base - need / 9 * span;
@@ -301,25 +368,30 @@
     }
   }
   function space(loc) {
-    var sp = st.d.space, au = loc.aurora || {};
+    var sp = st.d.space, au = loc.aurora || {}, kv;
     if (!sp) { msg("NO SPACE DATA", "SYNC COMPANION"); return; }
-    box(14, 88, 238, 240, "ROBCO SOLAR RELAY");
-    box(250, 88, W() - 14, 240, "KP BUFFER");
+    if (sp.kpf && st.k >= sp.kpf.length) st.k = sp.kpf.length - 1;
+    if (st.k < 0) st.k = 0;
+    box(14, 96, 238, 232, "ROBCO SOLAR RELAY");
+    box(250, 96, W() - 14, 232, "KP BUFFER");
     font(0);
-    rowAt("FLARE", sp.flare || "NONE", 26, 226, 114);
-    rowAt("R/S/G", (sp.r_scale || "R0") + " " + (sp.s_scale || "S0") + " " + (sp.g_scale || "G0"), 26, 226, 150);
+    rowAt("FLARE", sp.flare || "NONE", 26, 226, 118);
+    rowAt("R/S/G", (sp.r_scale || "R0") + " " + (sp.s_scale || "S0") + " " + (sp.g_scale || "G0"), 26, 226, 152);
     rowAt("KP NOW/PK", (sp.kp_now === undefined ? "--" : sp.kp_now) + " / " + (sp.kp_peak === undefined ? "--" : sp.kp_peak), 26, 226, 186);
     font(0);
-    text(cut((sp.g_text || "FIELD QUIET").toUpperCase(), 25), 26, 220, -1, -1);
-    text("3-DAY PLANETARY K-INDEX", 262, 106, -1, -1);
-    kpGraph(sp, loc, 286, 124, W() - 26, 222);
-    box(14, 250, W() - 14, 294, "AURORA ESTIMATE");
+    text(cut((sp.g_text || "FIELD QUIET").toUpperCase(), 25), 26, 216, -1, -1);
+    text("3-DAY PLANETARY K-INDEX", 262, 114, -1, -1);
+    kpGraph(sp, loc, 286, 132, W() - 26, 214);
+    box(14, 242, W() - 14, 282, "AURORA ESTIMATE");
     font(0);
-    text("AURORA @ " + cut((loc.name || "").toUpperCase(), 18), 24, 268, -1, 0);
+    text("AURORA @ " + cut((loc.name || "").toUpperCase(), 18), 24, 258, -1, 0);
     font(2);
-    text(au.chance || "UNKNOWN", W() - 24, 268, 1, 0);
+    text(au.chance || "UNKNOWN", W() - 24, 258, 1, 0);
     font(0);
-    if (au.needed !== undefined) text("NEEDS KP " + au.needed + "  PEAK KP " + (au.maxkp === undefined ? "?" : au.maxkp), 24, 280, -1, -1);
+    kv = sp.kpf && sp.kpf.length ? sp.kpf[st.k] : "--";
+    text("SLOT " + padHex(0xC000 + st.k * 4) + " KP " + kv + "  NEEDS " +
+      (au.needed === undefined ? "?" : au.needed) + "  PEAK " +
+      (au.maxkp === undefined ? "?" : au.maxkp), 24, 276, -1, 0);
   }
 
   function draw() {
@@ -333,6 +405,7 @@
       return;
     }
     var loc = st.d.locations[st.l] || {};
+    clampSel(loc);
     title(loc);
     tabs();
     if (st.t === 0) current(loc);
@@ -357,14 +430,20 @@
   }
   function knob1(dir) {
     if (!st.d) { if (dir === 0) load(); redraw(); return; }
-    if (dir === 0) st.t = (st.t + 1) % TABS.length;
+    var loc = st.d.locations[st.l] || {};
+    if (dir === 0) st.m = st.m ? 0 : 1;
+    else if (st.m) setSel(sel() + dir, loc);
     else st.l = (st.l + dir + st.d.locations.length) % st.d.locations.length;
     click();
     redraw();
   }
   function knob2(dir) {
-    if (dir === 0) return;
-    st.t = (st.t + dir + TABS.length) % TABS.length;
+    var loc;
+    st.t = (st.t + (dir || 1) + TABS.length) % TABS.length;
+    if (st.d) {
+      loc = st.d.locations[st.l] || {};
+      clampSel(loc);
+    }
     click();
     redraw();
   }

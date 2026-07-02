@@ -16,7 +16,7 @@
 #    Set SD output dir:  python pipboy_weather.py --sd E:\        (--fetch too)
 #    Use Celsius:        python pipboy_weather.py --units C --fetch
 #    Send over USB:      python pipboy_weather.py --usb           (no SD card needed)
-#    USB + app files:    python pipboy_weather.py --usb-install
+#    USB install+data:   python pipboy_weather.py --usb-install
 #    List serial ports:  python pipboy_weather.py --list-ports
 #
 #  The Pip-Boy app reads:  <SD>/USER/WEATHER.JSON
@@ -448,6 +448,55 @@ def find_app_files(source_dir):
     return found
 
 
+def app_files_from_config(cfg=None, latest=False):
+    """Resolve app files from config, or GitHub when latest=True.
+
+    Returns (files, tmpdir). tmpdir is None for local sources and must be
+    removed by the caller when GitHub was used.
+    """
+    cfg = cfg or {}
+    if latest or (cfg.get("app_source") or "").strip() == "github":
+        files, tmpdir = download_app_files()
+        return files, tmpdir
+    src_dir = (cfg.get("app_source_dir") or "").strip() or PROJECT_ROOT
+    tag = "" if (cfg.get("app_source_dir") or "").strip() else "  (bundled)"
+    print("  > app source: local folder %s%s" % (src_dir, tag))
+    return find_app_files(src_dir), None
+
+
+def scan_sd_app_files(sd_path):
+    """Return install status for required app files on an SD card root."""
+    sd = (sd_path or "").strip()
+    if not sd:
+        raise ValueError("Set the SD card root before scanning for the app.")
+    sd = os.path.abspath(os.path.expanduser(sd))
+    if not os.path.isdir(sd):
+        raise FileNotFoundError("SD card root not found: %s" % sd)
+
+    out = []
+    for rel in APP_FILE_REL:
+        path = os.path.join(sd, rel)
+        exists = os.path.isfile(path) and os.path.getsize(path) > 0
+        size = os.path.getsize(path) if exists else 0
+        out.append({"path": path, "rel": rel, "exists": exists, "bytes": size})
+    return out
+
+
+def missing_sd_app_files(sd_path):
+    return [r["rel"] for r in scan_sd_app_files(sd_path) if not r["exists"]]
+
+
+def usb_app_file_paths():
+    return [rel.replace("\\", "/") for rel in APP_FILE_REL]
+
+
+def write_temp_payload(payload):
+    fd, path = tempfile.mkstemp(prefix="weather_", suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"))
+    return path, os.path.getsize(path)
+
+
 def download_app_files(branch=GITHUB_BRANCH):
     """Download the latest device app files from GitHub into a temp folder.
 
@@ -506,6 +555,50 @@ def install_app_files(sd_path, files=None):
     return results
 
 
+def print_install_results(results):
+    for dest, rel, status, size in results:
+        print("  > %-9s %-22s %6d bytes" % (status.upper(), rel, size))
+    if results:
+        changed = sum(1 for r in results if r[2] != "unchanged")
+        print("  > app files: %d changed, %d unchanged -> %s"
+              % (changed, len(results) - changed,
+                 os.path.dirname(os.path.dirname(results[0][0]))))
+
+
+def prompt_yes_no(question, default=False):
+    """Ask a yes/no question in interactive terminals; return default otherwise."""
+    if not sys.stdin or not sys.stdin.isatty():
+        return default
+    suffix = " [Y/n] " if default else " [y/N] "
+    ans = input(question + suffix).strip().lower()
+    if not ans:
+        return default
+    return ans in ("y", "yes")
+
+
+def offer_latest_install_for_sd(cfg):
+    """Return True when the user wants latest app files added to a data sync."""
+    sd = (cfg.get("sd_path") or "").strip()
+    if not sd:
+        return False
+    try:
+        missing = missing_sd_app_files(sd)
+    except Exception as e:
+        print("  ! could not scan for Weather app files: %s" % e)
+        return False
+    if not missing:
+        print("  > Weather app found on SD.")
+        return False
+
+    print("  ! Weather app files are missing from this SD card:")
+    for rel in missing:
+        print("    - %s" % rel)
+    if prompt_yes_no("  Install the latest Weather app before syncing data?", False):
+        return True
+    print("  > continuing with weather data only.")
+    return False
+
+
 def uninstall_app_files(sd_path, remove_data=True):
     """Remove a previous install's files from the SD card.
 
@@ -547,6 +640,19 @@ def do_fetch(cfg):
     if not cfg["locations"]:
         print("  ! no locations configured. Add some first.")
         return
+    install_latest = offer_latest_install_for_sd(cfg)
+    tmp_app = None
+    if install_latest:
+        try:
+            files, tmp_app = app_files_from_config(cfg, latest=True)
+            print("  > installing latest Weather app files ...")
+            print_install_results(install_app_files(cfg["sd_path"], files))
+        except Exception as e:
+            print("  ! latest app install failed: %s" % e)
+            print("  > continuing with weather data only.")
+        finally:
+            if tmp_app:
+                shutil.rmtree(tmp_app, ignore_errors=True)
     payload = build_payload(cfg)
     if not payload["locations"]:
         print("  ! nothing fetched (check your connection).")
@@ -616,15 +722,40 @@ def do_usb_sync(cfg, install=False, port=None):
         print("  ! %s" % e)
         return
 
+    install_latest = False
+    if install:
+        try:
+            print("  > checking USB port before fetching weather ...")
+            port = usb.find_pipboy(port)
+            print("  > USB device found on %s." % port)
+        except (usb.SerialUnavailable, usb.PipBoyNotFound, usb.TransferError) as e:
+            print("  ! USB check failed: %s" % e)
+            return
+    else:
+        try:
+            print("  > scanning USB device for Weather app files ...")
+            scan = usb.scan_files(usb_app_file_paths(), port=port)
+            port = scan["port"]
+            if scan["missing"]:
+                print("  ! Weather app files are missing on the Pip-Boy:")
+                for rel in scan["missing"]:
+                    print("    - %s" % rel)
+                install_latest = prompt_yes_no(
+                    "  Install the latest Weather app with this USB sync?", False)
+                if not install_latest:
+                    print("  > continuing with weather data only.")
+            else:
+                print("  > Weather app found on %s (%s)." % (scan["port"], scan["board"]))
+        except (usb.SerialUnavailable, usb.PipBoyNotFound, usb.TransferError) as e:
+            print("  ! USB scan failed: %s" % e)
+            return
+
     # 1. build the weather payload and serialize it to a temp file
     payload = build_payload(cfg)
     if not payload["locations"]:
         print("  ! nothing fetched (check your connection).")
         return
-    tmp_json = tempfile.mktemp(prefix="weather_", suffix=".json")
-    with open(tmp_json, "w", encoding="utf-8") as f:
-        json.dump(payload, f, separators=(",", ":"))
-    size = os.path.getsize(tmp_json)
+    tmp_json, size = write_temp_payload(payload)
     print("  > payload: %d location(s), %d bytes"
           % (len(payload["locations"]), size))
     if size > DEVICE_JSON_LIMIT:
@@ -634,15 +765,16 @@ def do_usb_sync(cfg, install=False, port=None):
     pairs = []
     tmp_app = None
     try:
-        if install:
-            if (cfg.get("app_source") or "").strip() == "github":
-                app_files, tmp_app = download_app_files()
-            else:
-                src_dir = (cfg.get("app_source_dir") or "").strip() or PROJECT_ROOT
-                tag = "" if (cfg.get("app_source_dir") or "").strip() else "  (bundled)"
-                print("  > app source: local folder %s%s" % (src_dir, tag))
-                app_files = find_app_files(src_dir)
-            pairs.extend((src, rel.replace("\\", "/")) for src, rel in app_files)
+        if install or install_latest:
+            try:
+                app_files, tmp_app = app_files_from_config(cfg, latest=install_latest)
+                pairs.extend((src, rel.replace("\\", "/")) for src, rel in app_files)
+            except Exception as e:
+                if install:
+                    print("  ! app install failed: %s" % e)
+                    return
+                print("  ! latest app install unavailable: %s" % e)
+                print("  > sending weather data only.")
 
         # data last, so it still lands even when the app files are unchanged
         pairs.append((tmp_json, "USER/WEATHER.JSON"))
@@ -668,7 +800,7 @@ def do_usb_sync(cfg, install=False, port=None):
         print("    %-24s %6d bytes  %s" % (r["path"], r["bytes"], state))
     if not payload.get("space"):
         print("  (space-weather endpoints were unavailable; weather data was still sent)")
-    if install:
+    if install or install_latest:
         print("  > app files sent - reboot the Pip-Boy so it lists the app, then")
         print("    open Weather. A data-only sync (--usb) just needs the app reopened.")
     else:
@@ -748,13 +880,13 @@ def interactive(cfg):
         print_locations(cfg)
         print(" Output: %s" % resolve_output(cfg))
         print("-----------------------------------")
-        print("  [1] Fetch + write to SD")
+        print("  [1] Fetch weather data only")
         print("  [2] Add location")
         print("  [3] Remove location")
         print("  [4] Toggle units (F/C)")
         print("  [5] Set SD card path")
-        print("  [6] Transfer to Pip-Boy over USB (data only)")
-        print("  [7] Transfer over USB (app files + data)")
+        print("  [6] Transfer weather data over USB")
+        print("  [7] Install/update over USB (app files + data)")
         print("  [q] Quit")
         choice = input(" > ").strip().lower()
         if choice == "1":
@@ -787,7 +919,7 @@ def main():
     ap.add_argument("--usb", action="store_true",
                     help="fetch, then push data to a USB-connected Pip-Boy (no SD card needed)")
     ap.add_argument("--usb-install", action="store_true",
-                    help="like --usb, but also send the device app files")
+                    help="install/update the device app over USB and send fresh data")
     ap.add_argument("--port", metavar="PORT",
                     help="serial port for USB transfer (e.g. COM5 or /dev/ttyACM0); "
                          "auto-detected when omitted")

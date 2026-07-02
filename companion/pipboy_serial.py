@@ -294,6 +294,21 @@ class PipBoyLink:
                 % (sd_rel, total, got))
         return {"path": sd_rel, "bytes": total, "verified": True}
 
+    def file_size(self, sd_rel):
+        """Return the size of `sd_rel` on the card, or None if it is missing."""
+        path = sd_rel.replace("\\", "/")
+        st = self._status(
+            'print("%sL="+require("fs").readFileSync(%s).length)' % (MARK, _q(path)))
+        if st.startswith("ERR"):
+            return None
+        m = re.match(r"L=(\d+)", st)
+        return int(m.group(1)) if m else None
+
+    def file_exists(self, sd_rel, min_bytes=1):
+        """Return True when `sd_rel` exists and is at least `min_bytes` long."""
+        n = self.file_size(sd_rel)
+        return n is not None and n >= min_bytes
+
 
 # --------------------------------------------------------------- detection ---
 def find_pipboy(port=None, prefer="PIP"):
@@ -351,6 +366,27 @@ def transfer_files(pairs, port=None, progress=None):
                 data = f.read()
             results.append(link.write_file(sd_rel, data, progress=progress))
     return {"port": resolved, "board": board, "files": results}
+
+
+def scan_files(paths, port=None):
+    """Check whether SD-relative files exist on a USB-connected Pip-Boy.
+
+    Returns {'port','board','files':[{'path','exists','bytes'}], 'missing':[...]}.
+    A zero-byte file is treated as missing because app/data files should never
+    be empty in a working install.
+    """
+    _pyserial()                       # fail early with a clear message
+    resolved = find_pipboy(port)
+    files = []
+    with PipBoyLink(resolved) as link:
+        board = link.identify()
+        for sd_rel in paths:
+            path = sd_rel.replace("\\", "/")
+            size = link.file_size(path)
+            exists = size is not None and size > 0
+            files.append({"path": path, "exists": exists, "bytes": size or 0})
+    missing = [f["path"] for f in files if not f["exists"]]
+    return {"port": resolved, "board": board, "files": files, "missing": missing}
 
 
 # ---------------------------------------------------------------- CLI test ---

@@ -14,7 +14,8 @@ The companion has two front ends over the same engine:
 - Python 3.
 - Tkinter for the GUI. If Tkinter is unavailable, use the CLI.
 - Internet access during `fetch`.
-- No runtime package installs are required for fetching and syncing.
+- No runtime package installs are required for normal SD/local fetching.
+- Optional: `pyserial` for USB data transfer and USB install.
 
 The preview renderer is separate and requires Pillow. The main companion does
 not.
@@ -36,10 +37,16 @@ The GUI lets you:
 - Switch units between `F` and `C`.
 - Choose the SD card root with a folder picker.
 - Install or update the Pip-Boy app files and write fresh weather data to a
-  selected SD card.
-- Fetch Open-Meteo weather plus NOAA SWPC space weather and sync the cache to
-  the configured SD card.
+  selected SD card with `INSTALL SD + DATA`.
+- Install or update the Pip-Boy app files and fresh data over USB with
+  `USB INSTALL + DATA`.
+- Fetch Open-Meteo weather plus NOAA SWPC space weather and sync only the
+  cache to the configured SD card or over USB.
 - Watch progress in the built-in terminal pane.
+
+The data-only SD and USB sync actions scan for the Weather app before writing
+`USER/WEATHER.JSON`. If the app files are missing, the companion asks whether
+to include the latest app files with that sync.
 
 The GUI writes settings through the same config file as the CLI, so you can
 move between them freely.
@@ -54,11 +61,13 @@ python companion/pipboy_weather.py
 
 The menu supports:
 
-- Fetch and write to the configured output path.
+- Fetch weather data only and write it to the configured output path.
 - Add a location by search.
 - Remove a location.
 - Toggle units.
 - Set the SD card root.
+- Transfer weather data over USB.
+- Install or update the app over USB and send fresh data.
 
 Use the CLI when running from a terminal-only machine, a phone Python
 environment, or a desktop Python install without Tkinter.
@@ -72,6 +81,8 @@ python companion/pipboy_weather.py --sd E:\ --fetch
 python companion/pipboy_weather.py --sd /Volumes/PIPBOY --fetch
 python companion/pipboy_weather.py --add "Goodsprings, NV"
 python companion/pipboy_weather.py --units C --fetch
+python companion/pipboy_weather.py --usb
+python companion/pipboy_weather.py --usb-install
 ```
 
 Options can be combined. For example, this sets the SD path, switches to
@@ -125,8 +136,8 @@ The local fallback lets you copy the cache manually to the SD card later.
 
 ## Device Install
 
-In the GUI, press `INSTALL / UPDATE DEVICE` and select the Pip-Boy SD card
-root. The installer copies the packaged Pip-Boy app files to:
+In the GUI, press `INSTALL SD + DATA` and select the Pip-Boy SD card root. The
+installer copies the packaged Pip-Boy app files to:
 
 ```text
 <sd_path>/APPS/WEATHER.JS
@@ -140,8 +151,10 @@ It then fetches Open-Meteo weather plus NOAA SWPC space weather and writes:
 <sd_path>/USER/WEATHER.JSON
 ```
 
-Use `FETCH WEATHER + SPACE WX` later when the app is already installed and
-only the cached data needs to be refreshed.
+Use `USB INSTALL + DATA` to perform the same app-plus-data update over the
+Pip-Boy's USB serial console. Use `FETCH DATA ONLY` or `USB DATA ONLY` later
+when the app is already installed and only the cached data needs to be
+refreshed.
 
 ## Data Sources
 

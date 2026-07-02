@@ -29,9 +29,11 @@ DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "sample", 
 # logical screen - the Pip-Boy 3000 app runs LANDSCAPE (~480x320 usable)
 LW, LH = 480, 320
 S = 2  # supersample factor
-CORN = 40      # horizontal inset for the top/bottom rows so the rounded
+CORN = 56      # horizontal inset for the top/bottom rows so the rounded
                # display corners do not clip the header/footer text
                # (mirrors CORN in WEATHER.JS - keep the two in sync)
+TOP = 10
+FOOT = 26
 R_SCREEN = 40  # screen corner radius in logical px (the rounded glass); models
                # an aggressively rounded unit so the preview reveals corner clipping
 
@@ -207,30 +209,43 @@ def gauge(g, x, y, w, value, max_value):
         g.frect(x + 1, y + 1, x + fill, y + 5, fill=FG)
 
 
-def header(g, data, loc_i, stale=False, age="27H"):
+def item_count(data, loc, view):
+    if view == "current":
+        return 4
+    if view == "forecast":
+        return max(1, min(5, len(loc.get("daily") or [])))
+    return max(1, min(24, len((data.get("space") or {}).get("kpf") or [])))
+
+
+def header(g, data, loc_i, view="current", item_mode=False, item_i=0, stale=False, age="27H"):
     n = len(data["locations"])
     if stale:
-        g.text("! CACHE %s OLD - SYNC" % age, CORN, 6, F_TINY, fill=HOT)
+        g.text("! CACHE %s OLD - SYNC" % age, CORN, TOP, F_TINY, fill=HOT)
     else:
-        g.text("ROBCO INDUSTRIES (TM) TERMLINK", CORN, 6, F_TINY)
-    g.text("ATMOS [%d/%d]" % (loc_i + 1, n), LW - CORN, 6, F_TINY, ax=1)
-    hr(g, 18)
+        g.text("ROBCO INDUSTRIES (TM) TERMLINK", CORN, TOP, F_TINY)
+    if item_mode:
+        n = item_count(data, data["locations"][loc_i], view)
+        g.text("ITEM [%d/%d]" % (item_i + 1, n), LW - CORN, TOP, F_TINY, ax=1)
+    else:
+        g.text("SITE [%d/%d]" % (loc_i + 1, n), LW - CORN, TOP, F_TINY, ax=1)
+    hr(g, 24)
 
 
-def footer(g, data, stale=False):
-    y = LH - 16
-    hr(g, y - 4)
-    g.text("WHEEL:SITE  THUMB:PAGE  ITEMS:EXIT", CORN, y, F_TINY)
+def footer(g, data, item_mode=False, stale=False):
+    y = LH - FOOT
+    hr(g, y - 6)
+    label = "WHEEL:ITEM PUSH:SITE K2:VIEW" if item_mode else "WHEEL:SITE PUSH:ITEM K2:VIEW"
+    g.text(label, CORN, y, F_TINY)
     stamp = data.get("generated", "")[5:]
     g.text(("! " if stale else "UPD ") + stamp, LW - CORN, y, F_TINY,
            ax=1, fill=HOT if stale else FG)
 
 
 def title(g, loc, loc_i=0):
-    g.text(loc.get("name", "?").upper(), CORN, 24, F_SMALL, ax=-1, bold=True)
+    g.text(loc.get("name", "?").upper(), CORN, 32, F_SMALL, ax=-1, bold=True)
     if loc.get("region"):
-        g.text(loc["region"].upper(), CORN, 43, F_TINY, ax=-1, fill=DIM)
-    g.text("SITE " + pad_hex(0xA100 + loc_i * 0x23), LW - CORN, 43, F_TINY,
+        g.text(loc["region"].upper(), CORN, 51, F_TINY, ax=-1, fill=DIM)
+    g.text("SITE " + pad_hex(0xA100 + loc_i * 0x23), LW - CORN, 51, F_TINY,
            ax=1, fill=DIM)
 
 
@@ -238,7 +253,7 @@ TABS = ["ATMOS", "5-DAY", "SOLAR"]
 
 
 def tabs(g, active):
-    y = 58
+    y = 66
     bw = (LW - 24) / len(TABS)
     for i, t in enumerate(TABS):
         x0 = 12 + i * bw
@@ -247,7 +262,7 @@ def tabs(g, active):
             g.rect(x0 + 3, y, x0 + bw - 3, y + 15, fill=HOT)
         g.text(("> " if i == active else "  ") + t, x0 + bw / 2, y + 8,
                F_TINY, ax=0, ay=0, fill=col)
-    hr(g, 77)
+    hr(g, 85)
 
 
 def stat(g, label, value, x, y, w):
@@ -293,61 +308,81 @@ def solar_line(data, loc):
 
 
 # --------------------------------------------------------------- views
-def view_current(g, data, loc):
+def view_current(g, data, loc, item_i=0):
     c = loc.get("current", {})
     unit = data.get("units", {}).get("temp", "F")
     d0 = (loc.get("daily") or [{}])[0]
-    box(g, 14, 88, 236, 255, "LOCAL ATMOS")
-    box(g, 248, 88, LW - 14, 255, "INSTRUMENTS")
+    box(g, 14, 96, 236, 246, "LOCAL ATMOS")
+    box(g, 248, 96, LW - 14, 246, "INSTRUMENTS")
 
-    draw_icon(g, c.get("code", 0), 70, 135, 24, c.get("is_day", 1))
+    draw_icon(g, c.get("code", 0), 70, 136, 24, c.get("is_day", 1))
     temp = str(round(c.get("temp", 0)))
-    g.text(temp, 118, 145, F_BIG, ax=-1, ay=0, bold=True)
+    g.text(temp, 118, 144, F_BIG, ax=-1, ay=0, bold=True)
     g.circle(205 + 5, 124 + 4, 4)
     g.text(unit, 205 + 14, 124 + 6, F_TINY, ax=-1, ay=0)
 
-    g.text("> CONDITION", 24, 184, F_TINY, fill=DIM)
-    g.text(c.get("desc", "--").upper()[:18], 24, 203, F_SMALL)
+    g.text("> CONDITION", 24, 181, F_TINY, fill=DIM)
+    g.text(c.get("desc", "--").upper()[:18], 24, 199, F_SMALL)
     g.text("HI/LO %s/%s  RAIN %s%%" % (round(d0.get("hi", 0)),
-           round(d0.get("lo", 0)), round(d0.get("pop", 0))), 24, 228,
+           round(d0.get("lo", 0)), round(d0.get("pop", 0))), 24, 219,
            F_TINY, fill=FG)
     if c.get("time"):
-        g.text("OBS " + c["time"][5:], 24, 243, F_TINY, fill=DIM)
+        g.text("OBS " + c["time"][5:], 24, 231, F_TINY, fill=DIM)
 
-    xL, xR = 260, LW - 26
-    stat_row(g, "FEELS", str(round(c.get("feels", 0))) + unit, xL, xR, 112)
+    xL, xR = 262, LW - 26
+    rows = [(104, 127), (134, 157), (164, 193), (202, 233)]
+    for i, (y0, y1) in enumerate(rows):
+        if i == item_i:
+            g.rect(254, y0, LW - 20, y1, fill=HOT)
+    stat_row(g, "FEELS", str(round(c.get("feels", 0))) + unit, xL, xR, 116)
     stat_row(g, "WIND", str(round(c.get("wind", 0))) + " " + c.get("dir", ""), xL, xR, 146)
-    stat_row(g, "HUMID", str(round(c.get("humidity", 0))) + "%", xL, xR, 180)
-    gauge(g, xL, 192, LW - 286, c.get("humidity"), 100)
-    stat_row(g, "RAD UV", str(round(c.get("uv", 0))), xL, xR, 220)
-    gauge(g, xL, 232, LW - 286, c.get("uv"), 11)
+    stat_row(g, "HUMID", str(round(c.get("humidity", 0))) + "%", xL, xR, 176)
+    gauge(g, xL, 188, LW - 288, c.get("humidity"), 100)
+    stat_row(g, "RAD UV", str(round(c.get("uv", 0))), xL, xR, 214)
+    gauge(g, xL, 226, LW - 288, c.get("uv"), 11)
 
-    box(g, 14, 262, LW - 14, 286, "RELAY")
-    sl = solar_line(data, loc)
-    g.text((sl or "SOLAR RELAY UNAVAILABLE")[:58], 24, 274, F_TINY, ay=0,
-           fill=HOT if sl and ("AURORA" in sl or solar_active(data.get("space"))) else FG)
+    if item_i == 0:
+        detail = "APPARENT TEMP %s%s  ACTUAL %s%s" % (round(c.get("feels", 0)), unit, round(c.get("temp", 0)), unit)
+    elif item_i == 1:
+        detail = "SURFACE WIND %s %s %s" % (round(c.get("wind", 0)), c.get("dir", ""), data.get("units", {}).get("wind", ""))
+    elif item_i == 2:
+        detail = "HUMIDITY %s%%  PRECIP %s%%" % (round(c.get("humidity", 0)), round(d0.get("pop", 0)))
+    else:
+        detail = "RAD UV %s  %s" % (round(c.get("uv", 0)), solar_line(data, loc) or "SOLAR RELAY QUIET")
+    box(g, 14, 250, LW - 14, 282, "SELECTED TELEMETRY")
+    g.text(detail[:63], 24, 266, F_TINY, ay=0,
+           fill=HOT if item_i == 3 and solar_active(data.get("space")) else FG)
 
 
-def view_forecast(g, data, loc):
+def view_forecast(g, data, loc, item_i=0):
     days = loc.get("daily", [])[:5]
-    box(g, 14, 88, LW - 14, 286, "FORECAST BUFFER")
-    g.text("5 ENTRIES  //  HI/LO  //  PRECIP CHANCE", 26, 103, F_TINY, fill=DIM)
+    if days:
+        item_i = min(item_i, len(days) - 1)
+    box(g, 14, 96, LW - 14, 222, "FORECAST BUFFER")
+    g.text("5 ENTRIES  //  SELECT DAY WITH WHEEL", 26, 111, F_TINY, fill=DIM)
     colW = (LW - 24) / 5
     for i, dday in enumerate(days):
         cx = 12 + colW * i + colW / 2
         if i > 0:
-            g.line(12 + colW * i, 126, 12 + colW * i, 274, fill=DIM)
-        g.text(pad_hex(0xB000 + i * 0x10), cx, 119, F_TINY, ax=0, fill=DIM)
-        g.text(dday.get("d", "?"), cx, 138, F_SMALL, ax=0)
-        draw_icon(g, dday.get("code", 0), cx, 166, 17, True)
-        g.text(dday.get("desc", "--").upper()[:10], cx, 198, F_TINY, ax=0, fill=DIM)
-        g.text("%s/%s" % (round(dday.get("hi", 0)), round(dday.get("lo", 0))),
-               cx, 218, F_SMALL, ax=0)
-        g.text(str(round(dday.get("pop", 0))) + "%", cx, 246, F_TINY, ax=0)
-        gauge(g, 12 + colW * i + 13, 263, colW - 26, dday.get("pop"), 100)
+            g.line(12 + colW * i, 126, 12 + colW * i, 216, fill=DIM)
+        if i == item_i:
+            g.rect(12 + colW * i + 4, 122, 12 + colW * (i + 1) - 4, 216, fill=HOT)
+        g.text(pad_hex(0xB000 + i * 0x10), cx, 129, F_TINY, ax=0, fill=DIM)
+        g.text(dday.get("d", "?"), cx, 146, F_SMALL, ax=0)
+        draw_icon(g, dday.get("code", 0), cx, 169, 15, True)
+        g.text(dday.get("desc", "--").upper()[:9], cx, 192, F_TINY, ax=0, fill=DIM)
+        g.text("%s/%s %s%%" % (round(dday.get("hi", 0)), round(dday.get("lo", 0)),
+               round(dday.get("pop", 0))), cx, 207, F_TINY, ax=0)
+    dday = days[item_i] if days else {}
+    box(g, 14, 232, LW - 14, 282, "ENTRY DETAIL")
+    g.text("%s  %s" % (dday.get("date", dday.get("d", "D%d" % (item_i + 1))),
+           dday.get("desc", "--").upper()[:20]), 24, 247, F_TINY)
+    g.text("HI/LO %s/%s" % (round(dday.get("hi", 0)), round(dday.get("lo", 0))),
+           24, 268, F_SMALL, ax=-1, ay=0)
+    g.text("RAIN %s%%" % round(dday.get("pop", 0)), LW - 24, 268, F_SMALL, ax=1, ay=0)
 
 
-def kp_graph(g, sp, loc, x0, y0, x1, y1):
+def kp_graph(g, sp, loc, x0, y0, x1, y1, item_i=0):
     kpf = sp.get("kpf", [])
     base, span = y1, y1 - y0
 
@@ -368,6 +403,8 @@ def kp_graph(g, sp, loc, x0, y0, x1, y1):
             g.frect(bx0, by, bx1, base - 1)
         else:
             g.rect(bx0, by, bx1, base - 1, fill=DIM)
+        if i == item_i:
+            g.rect(bx0 - 1, by - 2, bx1 + 1, base, fill=HOT)
     if needed <= 9:
         ty = ky(needed)
         dx = x0
@@ -381,32 +418,36 @@ def kp_graph(g, sp, loc, x0, y0, x1, y1):
         g.text(tk["d"], tx, base + 4, F_TINY, ax=0)
 
 
-def view_space(g, data, loc):
+def view_space(g, data, loc, item_i=0):
     sp = data.get("space")
     if not sp:
         g.text("NO SPACE WX DATA", LW / 2, LH / 2, F_SMALL, ax=0, ay=0)
         return
-    box(g, 14, 88, 238, 240, "ROBCO SOLAR RELAY")
-    box(g, 250, 88, LW - 14, 240, "KP BUFFER")
-    stat_row(g, "FLARE", sp.get("flare", "NONE"), 26, 226, 114)
+    kpf = sp.get("kpf") or []
+    if kpf:
+        item_i = min(item_i, len(kpf) - 1)
+    box(g, 14, 96, 238, 232, "ROBCO SOLAR RELAY")
+    box(g, 250, 96, LW - 14, 232, "KP BUFFER")
+    stat_row(g, "FLARE", sp.get("flare", "NONE"), 26, 226, 118)
     stat_row(g, "R/S/G", "%s %s %s" % (sp.get("r_scale", "R0"),
-             sp.get("s_scale", "S0"), sp.get("g_scale", "G0")), 26, 226, 150)
+             sp.get("s_scale", "S0"), sp.get("g_scale", "G0")), 26, 226, 152)
     stat_row(g, "KP NOW/PK", "%s / %s" % (sp.get("kp_now", "--"),
              sp.get("kp_peak", "--")), 26, 226, 186)
-    g.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 26, 220, F_TINY, fill=DIM)
-    g.text("3-DAY PLANETARY K-INDEX", 262, 106, F_TINY, fill=DIM)
-    kp_graph(g, sp, loc, 286, 124, LW - 26, 222)
+    g.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 26, 216, F_TINY, fill=DIM)
+    g.text("3-DAY PLANETARY K-INDEX", 262, 114, F_TINY, fill=DIM)
+    kp_graph(g, sp, loc, 286, 132, LW - 26, 214, item_i)
 
-    box(g, 14, 250, LW - 14, 294, "AURORA ESTIMATE")
+    box(g, 14, 242, LW - 14, 282, "AURORA ESTIMATE")
     au = loc.get("aurora", {})
-    g.text("AURORA @ " + loc.get("name", "").upper()[:18], 24, 268, F_TINY,
+    g.text("AURORA @ " + loc.get("name", "").upper()[:18], 24, 258, F_TINY,
            ax=-1, ay=0)
     chance = au.get("chance", "UNKNOWN")
-    g.text(chance, LW - 24, 268, F_HEAD, ax=1, ay=0, bold=True,
+    g.text(chance, LW - 24, 258, F_HEAD, ax=1, ay=0, bold=True,
            fill=HOT if chance in ("LIKELY", "POSSIBLE") else FG)
-    if "needed" in au:
-        g.text("NEEDS Kp %s   PEAK Kp %s" % (au["needed"], au.get("maxkp", "?")),
-               24, 280, F_TINY, fill=FG)
+    kv = kpf[item_i] if kpf else "--"
+    g.text("SLOT %s KP %s  NEEDS %s  PEAK %s" % (
+           pad_hex(0xC000 + item_i * 4), kv, au.get("needed", "?"), au.get("maxkp", "?")),
+           24, 276, F_TINY, fill=FG, ay=0)
 
 
 # --------------------------------------------------------------- compositing
@@ -459,14 +500,14 @@ def bezel(screen_img, caption):
     return out
 
 
-def render_device(data, loc_i, view, caption, stale=False):
+def render_device(data, loc_i, view, caption, stale=False, item_mode=False, item_i=0):
     g = Screen()
     loc = data["locations"][loc_i]
-    header(g, data, loc_i, stale=stale)
+    header(g, data, loc_i, view=view, item_mode=item_mode, item_i=item_i, stale=stale)
     title(g, loc, loc_i)
     tabs(g, {"current": 0, "forecast": 1, "space": 2}[view])
-    {"current": view_current, "forecast": view_forecast, "space": view_space}[view](g, data, loc)
-    footer(g, data, stale=stale)
+    {"current": view_current, "forecast": view_forecast, "space": view_space}[view](g, data, loc, item_i)
+    footer(g, data, item_mode=item_mode, stale=stale)
     img = crt_effect(g.img)
     return bezel(img, caption)
 
@@ -540,7 +581,7 @@ def render_gui():
 
     # fetch button
     d.rectangle([14 * s, 444 * s, 846 * s, 486 * s], outline=AMB, width=2 * s)
-    t("FETCH WEATHER + SPACE WX", W / (2 * s), 465, 22, fill=AMB, bold=True,
+    t("FETCH DATA ONLY", W / (2 * s), 465, 22, fill=AMB, bold=True,
       anchor="mm")
 
     # terminal log
@@ -568,8 +609,8 @@ def main():
 
     jobs = [
         (render_device(data, 0, "current", "CURRENT CONDITIONS"), "01_current.png"),
-        (render_device(data, 0, "forecast", "5-DAY FORECAST"), "02_forecast.png"),
-        (render_device(data, north, "space", "SPACE WEATHER"), "03_space_weather.png"),
+        (render_device(data, 0, "forecast", "5-DAY FORECAST", item_mode=True, item_i=3), "02_forecast.png"),
+        (render_device(data, north, "space", "SPACE WEATHER", item_mode=True, item_i=6), "03_space_weather.png"),
         (render_device(data, north, "current", "CURRENT + SOLAR TIE-IN"), "04_current_solar.png"),
         (render_device(data, 0, "current", "STALE-DATA WARNING", stale=True), "05_stale_warning.png"),
         (render_gui(), "06_companion_gui.png"),
