@@ -63,13 +63,16 @@
   function scanMask() {
     var y, w = W(), h = H();
     for (y = 33; y < h - 32; y += 8) G.clearRect(8, y, w - 8, y);
-    G.drawRect(3, 3, w - 4, h - 4);
   }
   function hr(y) { G.drawLine(12, y, W() - 12, y); }
   function stamp(s) {
     if (!s) return "";
     s = ("" + s).replace("T", " ");
     return s.length >= 16 ? s.substr(5, 11) : s;
+  }
+  function kpLabel(sp, i) {
+    if (sp && sp.kpt && sp.kpt[i]) return ("" + sp.kpt[i]).toUpperCase();
+    return "T+" + (i * 3) + "H";
   }
   function ageHours() {
     if (!st.d || !st.d.epoch) return null;
@@ -288,13 +291,13 @@
     rowAt("RAD UV", num(c.uv), 262, W() - 26, 214);
     gauge(262, 226, W() - 288, c.uv, 11);
 
-    if (st.a === 0) detail = "APPARENT TEMP " + num(c.feels) + unit() + "  ACTUAL " + num(c.temp) + unit();
-    else if (st.a === 1) detail = "SURFACE WIND " + num(c.wind) + (c.dir ? " " + c.dir : "") + " " + ((st.d.units && st.d.units.wind) || "");
-    else if (st.a === 2) detail = "HUMIDITY " + num(c.humidity) + "%  PRECIP " + (d0.pop === undefined ? "--" : Math.round(d0.pop)) + "%";
-    else detail = "RAD UV " + num(c.uv) + "  " + (solarLine(loc) || "SOLAR RELAY QUIET");
+    if (st.a === 0) detail = "FEELS " + num(c.feels) + unit() + "  ACTUAL " + num(c.temp) + unit();
+    else if (st.a === 1) detail = "WIND " + num(c.wind) + (c.dir ? " " + c.dir : "") + " " + ((st.d.units && st.d.units.wind) || "");
+    else if (st.a === 2) detail = "HUMID " + num(c.humidity) + "%  RAIN " + (d0.pop === undefined ? "--" : Math.round(d0.pop)) + "%";
+    else detail = "UV " + num(c.uv) + "  " + (solarLine(loc) || "SOLAR QUIET");
     box(14, 250, W() - 14, 282, "SELECTED TELEMETRY");
-    font(0);
-    text(cut(detail, 63), 24, 266, -1, 0);
+    font(1);
+    text(cut(detail, 36), 24, 266, -1, 0);
   }
 
   function forecast(loc) {
@@ -310,10 +313,8 @@
       cx = x + cw / 2;
       if (i > 0) G.drawLine(x, 126, x, 216);
       hilite(x + 4, 122, x + cw - 4, 216, i === st.f);
-      font(0);
-      text(padHex(0xB000 + i * 0x10), cx, 129, 0, -1);
       font(1);
-      text(d.d || ("D" + (i + 1)), cx, 146, 0, -1);
+      text(d.d || ("D" + (i + 1)), cx, 134, 0, -1);
       wxIcon(d.code, cx, 169, 10);
       font(0);
       text(cut((d.desc || "--").toUpperCase(), 9), cx, 192, 0, -1);
@@ -325,37 +326,54 @@
     hi = d.hi === undefined ? "--" : Math.round(d.hi);
     lo = d.lo === undefined ? "--" : Math.round(d.lo);
     box(14, 232, W() - 14, 282, "ENTRY DETAIL");
-    font(0);
-    text((d.date || d.d || ("D" + (st.f + 1))) + "  " + cut((d.desc || "--").toUpperCase(), 20), 24, 247, -1, -1);
     font(1);
-    text("HI/LO " + hi + "/" + lo, 24, 268, -1, 0);
-    text("RAIN " + (d.pop === undefined ? "--" : Math.round(d.pop)) + "%", W() - 24, 268, 1, 0);
+    text(cut((d.date || d.d || ("D" + (st.f + 1))) + "  " +
+      (d.desc || "--").toUpperCase(), 36), 24, 249, -1, -1);
+    text("HI/LO " + hi + "/" + lo, 24, 272, -1, 0);
+    text("RAIN " + (d.pop === undefined ? "--" : Math.round(d.pop)) + "%", W() - 24, 272, 1, 0);
   }
 
   function kpGraph(sp, loc, x0, y0, x1, y1) {
     var k = sp.kpf || [], base = y1, span = y1 - y0, need = 99;
-    var i, bw, v, y, bx0, bx1, ty, dx;
+    var i, bw, v, y, bx0, bx1, ty, dx, tk, tx;
     if (!k.length) return;
     if (loc.aurora && loc.aurora.needed !== undefined) need = loc.aurora.needed;
+    font(0);
+    text("KP", x0 - 18, y0 - 8, -1, -1);
     G.drawLine(x0, y0, x0, y1);
     G.drawLine(x0, y1, x1, y1);
+    text("0", x0 - 4, base, 1, 0);
+    for (v = 3; v <= 9; v += 3) {
+      y = base - v / 9 * span;
+      text("" + v, x0 - 4, y, 1, 0);
+      G.drawLine(x0 - 2, y, x0 + 2, y);
+    }
     bw = (x1 - x0) / k.length;
     for (i = 0; i < k.length; i++) {
       v = Math.max(0, Math.min(9, k[i]));
       y = base - v / 9 * span;
       bx0 = x0 + i * bw + 1;
       bx1 = x0 + (i + 1) * bw - 1;
-      if (k[i] >= need) G.fillRect(bx0, y, bx1, base - 1);
+      if (k[i] >= need || i === st.k) G.fillRect(bx0, y, bx1, base - 1);
       else G.drawRect(bx0, y, bx1, base - 1);
-      if (i === st.k) G.drawRect(bx0 - 1, y - 2, bx1 + 1, base);
+      if (i === st.k) {
+        G.drawRect(bx0 - 3, y0 - 2, bx1 + 3, base + 2);
+        G.drawRect(bx0 - 2, y0 - 1, bx1 + 2, base + 1);
+      }
     }
     if (need <= 9) {
       ty = base - need / 9 * span;
       for (dx = x0; dx < x1; dx += 8) G.drawLine(dx, ty, dx + 4, ty);
     }
+    for (i = 0; sp.kpf_ticks && i < sp.kpf_ticks.length; i++) {
+      tk = sp.kpf_ticks[i];
+      tx = x0 + tk.i * bw;
+      G.drawLine(tx, base, tx, base + 3);
+      text(cut(tk.d || "", 5), tx, base + 5, 0, -1);
+    }
   }
   function space(loc) {
-    var sp = st.d.space, au = loc.aurora || {}, kv;
+    var sp = st.d.space, au = loc.aurora || {}, kv, kt;
     if (!sp) { msg("NO SPACE DATA", "SYNC COMPANION"); return; }
     if (sp.kpf && st.k >= sp.kpf.length) st.k = sp.kpf.length - 1;
     if (st.k < 0) st.k = 0;
@@ -367,18 +385,19 @@
     rowAt("KP NOW/PK", (sp.kp_now === undefined ? "--" : sp.kp_now) + " / " + (sp.kp_peak === undefined ? "--" : sp.kp_peak), 26, 226, 186);
     font(0);
     text(cut((sp.g_text || "FIELD QUIET").toUpperCase(), 25), 26, 216, -1, -1);
-    text("3-DAY PLANETARY K-INDEX", 262, 114, -1, -1);
-    kpGraph(sp, loc, 286, 132, W() - 26, 214);
+    text("KP FORECAST UTC", 262, 114, -1, -1);
+    kpGraph(sp, loc, 286, 132, W() - 26, 210);
     box(14, 242, W() - 14, 282, "AURORA ESTIMATE");
     font(0);
     text("AURORA @ " + cut((loc.name || "").toUpperCase(), 18), 24, 258, -1, 0);
     font(2);
     text(au.chance || "UNKNOWN", W() - 24, 258, 1, 0);
-    font(0);
+    font(1);
     kv = sp.kpf && sp.kpf.length ? sp.kpf[st.k] : "--";
-    text("SLOT " + padHex(0xC000 + st.k * 4) + " KP " + kv + "  NEEDS " +
-      (au.needed === undefined ? "?" : au.needed) + "  PEAK " +
-      (au.maxkp === undefined ? "?" : au.maxkp), 24, 276, -1, 0);
+    kt = kpLabel(sp, st.k);
+    text(cut(kt + "  KP " + kv, 24), 24, 276, -1, 0);
+    text("NEED " + (au.needed === undefined ? "?" : au.needed) + " PK " +
+      (au.maxkp === undefined ? "?" : au.maxkp), W() - 24, 276, 1, 0);
   }
 
   function draw() {

@@ -127,6 +127,29 @@ def weekday_label(date_str):
         return date_str
 
 
+def parse_swpc_time(time_tag):
+    s = str(time_tag or "").strip().replace("T", " ")
+    if s.endswith("Z"):
+        s = s[:-1]
+    s = s.split(".")[0]
+    try:
+        return datetime.datetime.fromisoformat(s)
+    except Exception:
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2})", s)
+        if not m:
+            return None
+        return datetime.datetime(int(m.group(1)), int(m.group(2)),
+                                 int(m.group(3)), int(m.group(4)))
+
+
+def kp_time_label(time_tag):
+    dt = parse_swpc_time(time_tag)
+    if dt:
+        return dt.strftime("%m/%d %HZ")
+    s = str(time_tag or "").replace("T", " ")
+    return s[:11].upper() if s else ""
+
+
 # ------------------------------------------------------------- config I/O ----
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -278,13 +301,17 @@ def fetch_space():
             kp_forecast_peak = max(kps)
             space["kp_peak"] = round(kp_forecast_peak, 1)
             space["kpf"] = [round(k, 1) for _, k in series]
+            space["kpt"] = [kp_time_label(t) for t, _ in series]
             ticks = []
             for i, (t, _) in enumerate(series):
-                if "T00:00" in t:            # midnight -> day boundary tick
+                dt = parse_swpc_time(t)
+                if dt and (i == 0 or dt.hour == 0):
+                    ticks.append({"i": i, "d": dt.strftime("%m/%d")})
+                elif not dt and ("T00:00" in t or " 00:00" in t):
                     try:
                         ticks.append({"i": i,
                                       "d": datetime.date.fromisoformat(
-                                          t[:10]).strftime("%a").upper()})
+                                          t[:10]).strftime("%m/%d")})
                     except Exception:
                         pass
             space["kpf_ticks"] = ticks

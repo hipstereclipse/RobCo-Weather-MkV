@@ -194,6 +194,13 @@ def pad_hex(n):
     return "0x%04X" % max(0, int(n))
 
 
+def kp_label(sp, i):
+    labels = (sp or {}).get("kpt") or []
+    if 0 <= i < len(labels) and labels[i]:
+        return str(labels[i]).upper()
+    return "T+%dH" % (i * 3)
+
+
 def box(g, x0, y0, x1, y1, label):
     g.rect(x0, y0, x1, y1)
     if label:
@@ -344,15 +351,15 @@ def view_current(g, data, loc, item_i=0):
     gauge(g, xL, 226, LW - 288, c.get("uv"), 11)
 
     if item_i == 0:
-        detail = "APPARENT TEMP %s%s  ACTUAL %s%s" % (round(c.get("feels", 0)), unit, round(c.get("temp", 0)), unit)
+        detail = "FEELS %s%s  ACTUAL %s%s" % (round(c.get("feels", 0)), unit, round(c.get("temp", 0)), unit)
     elif item_i == 1:
-        detail = "SURFACE WIND %s %s %s" % (round(c.get("wind", 0)), c.get("dir", ""), data.get("units", {}).get("wind", ""))
+        detail = "WIND %s %s %s" % (round(c.get("wind", 0)), c.get("dir", ""), data.get("units", {}).get("wind", ""))
     elif item_i == 2:
-        detail = "HUMIDITY %s%%  PRECIP %s%%" % (round(c.get("humidity", 0)), round(d0.get("pop", 0)))
+        detail = "HUMID %s%%  RAIN %s%%" % (round(c.get("humidity", 0)), round(d0.get("pop", 0)))
     else:
-        detail = "RAD UV %s  %s" % (round(c.get("uv", 0)), solar_line(data, loc) or "SOLAR RELAY QUIET")
+        detail = "UV %s  %s" % (round(c.get("uv", 0)), solar_line(data, loc) or "SOLAR QUIET")
     box(g, 14, 250, LW - 14, 282, "SELECTED TELEMETRY")
-    g.text(detail[:63], 24, 266, F_TINY, ay=0,
+    g.text(detail[:36], 24, 266, F_SMALL, ay=0,
            fill=HOT if item_i == 3 and solar_active(data.get("space")) else FG)
 
 
@@ -369,8 +376,7 @@ def view_forecast(g, data, loc, item_i=0):
             g.line(12 + colW * i, 126, 12 + colW * i, 216, fill=DIM)
         if i == item_i:
             g.rect(12 + colW * i + 4, 122, 12 + colW * (i + 1) - 4, 216, fill=HOT)
-        g.text(pad_hex(0xB000 + i * 0x10), cx, 129, F_TINY, ax=0, fill=DIM)
-        g.text(dday.get("d", "?"), cx, 146, F_SMALL, ax=0)
+        g.text(dday.get("d", "?"), cx, 134, F_SMALL, ax=0)
         draw_icon(g, dday.get("code", 0), cx, 169, 10, True)
         g.text(dday.get("desc", "--").upper()[:9], cx, 192, F_TINY, ax=0, fill=DIM)
         g.text("%s/%s %s%%" % (round(dday.get("hi", 0)), round(dday.get("lo", 0)),
@@ -378,10 +384,10 @@ def view_forecast(g, data, loc, item_i=0):
     dday = days[item_i] if days else {}
     box(g, 14, 232, LW - 14, 282, "ENTRY DETAIL")
     g.text("%s  %s" % (dday.get("date", dday.get("d", "D%d" % (item_i + 1))),
-           dday.get("desc", "--").upper()[:20]), 24, 247, F_TINY)
+           dday.get("desc", "--").upper()[:20]), 24, 249, F_SMALL)
     g.text("HI/LO %s/%s" % (round(dday.get("hi", 0)), round(dday.get("lo", 0))),
-           24, 268, F_SMALL, ax=-1, ay=0)
-    g.text("RAIN %s%%" % round(dday.get("pop", 0)), LW - 24, 268, F_SMALL, ax=1, ay=0)
+           24, 272, F_SMALL, ax=-1, ay=0)
+    g.text("RAIN %s%%" % round(dday.get("pop", 0)), LW - 24, 272, F_SMALL, ax=1, ay=0)
 
 
 def kp_graph(g, sp, loc, x0, y0, x1, y1, item_i=0):
@@ -391,22 +397,26 @@ def kp_graph(g, sp, loc, x0, y0, x1, y1, item_i=0):
     def ky(kp):
         return base - (max(0, min(9, kp)) / 9) * span
 
+    g.text("KP", x0 - 18, y0 - 8, F_TINY)
     g.line(x0, y0, x0, y1)
     g.line(x0, y1, x1, y1)
+    g.text("0", x0 - 4, base, F_TINY, ax=1, ay=0, fill=DIM)
     for v in (3, 6, 9):
         g.text(str(v), x0 - 2, ky(v), F_TINY, ax=1, ay=0, fill=DIM)
+        g.line(x0 - 2, ky(v), x0 + 2, ky(v), fill=DIM)
     needed = (loc.get("aurora") or {}).get("needed", 99)
     n = len(kpf) or 1
     bw = (x1 - x0) / n
     for i, kp in enumerate(kpf):
         bx0, bx1 = x0 + i * bw + 1, x0 + (i + 1) * bw - 1
         by = ky(kp)
-        if kp >= needed:
-            g.frect(bx0, by, bx1, base - 1)
+        if kp >= needed or i == item_i:
+            g.frect(bx0, by, bx1, base - 1, fill=HOT if i == item_i else FG)
         else:
             g.rect(bx0, by, bx1, base - 1, fill=DIM)
         if i == item_i:
-            g.rect(bx0 - 1, by - 2, bx1 + 1, base, fill=HOT)
+            g.rect(bx0 - 3, y0 - 2, bx1 + 3, base + 2, fill=HOT, w=2)
+            g.rect(bx0 - 5, y0 - 4, bx1 + 5, base + 4, fill=HOT)
     if needed <= 9:
         ty = ky(needed)
         dx = x0
@@ -417,7 +427,7 @@ def kp_graph(g, sp, loc, x0, y0, x1, y1, item_i=0):
     for tk in sp.get("kpf_ticks", []):
         tx = x0 + tk["i"] * bw
         g.line(tx, base, tx, base + 3)
-        g.text(tk["d"], tx, base + 4, F_TINY, ax=0)
+        g.text(str(tk.get("d", ""))[:5], tx, base + 4, F_TINY, ax=0)
 
 
 def view_space(g, data, loc, item_i=0):
@@ -436,8 +446,8 @@ def view_space(g, data, loc, item_i=0):
     stat_row(g, "KP NOW/PK", "%s / %s" % (sp.get("kp_now", "--"),
              sp.get("kp_peak", "--")), 26, 226, 186)
     g.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 26, 216, F_TINY, fill=DIM)
-    g.text("3-DAY PLANETARY K-INDEX", 262, 114, F_TINY, fill=DIM)
-    kp_graph(g, sp, loc, 286, 132, LW - 26, 214, item_i)
+    g.text("KP FORECAST UTC", 262, 114, F_TINY, fill=DIM)
+    kp_graph(g, sp, loc, 286, 132, LW - 26, 210, item_i)
 
     box(g, 14, 242, LW - 14, 282, "AURORA ESTIMATE")
     au = loc.get("aurora", {})
@@ -447,9 +457,10 @@ def view_space(g, data, loc, item_i=0):
     g.text(chance, LW - 24, 258, F_HEAD, ax=1, ay=0, bold=True,
            fill=HOT if chance in ("LIKELY", "POSSIBLE") else FG)
     kv = kpf[item_i] if kpf else "--"
-    g.text("SLOT %s KP %s  NEEDS %s  PEAK %s" % (
-           pad_hex(0xC000 + item_i * 4), kv, au.get("needed", "?"), au.get("maxkp", "?")),
-           24, 276, F_TINY, fill=FG, ay=0)
+    g.text(("%s  KP %s" % (kp_label(sp, item_i), kv))[:24],
+           24, 276, F_SMALL, fill=FG, ay=0)
+    g.text("NEED %s PK %s" % (au.get("needed", "?"), au.get("maxkp", "?")),
+           LW - 24, 276, F_SMALL, fill=FG, ax=1, ay=0)
 
 
 # --------------------------------------------------------------- compositing
@@ -548,9 +559,11 @@ def render_gui():
         if i == 3:
             d.rectangle([18 * s, (yy - 2) * s, 414 * s, (yy + 16) * s], fill=SELc)
         t(" " + l, 20, yy, 11, fill=(AMB if i == 3 else GREEN))
-    for bx, lbl, col in [(18, "UP", GREEN), (58, "DN", GREEN), (360, "REMOVE", AMB)]:
-        d.rectangle([bx * s, 300 * s, (bx + (60 if lbl == "REMOVE" else 28)) * s, 320 * s],
-                    outline=EDGE, width=s)
+    t("4 SAVED - LIKELY OK FOR DEVICE CACHE", 20, 276, 9, fill=DIMc)
+    for bx, lbl, bw, col in [(18, "UP", 28, GREEN), (58, "DN", 28, GREEN),
+                             (246, "RESET DEFAULTS", 106, GREEN),
+                             (360, "REMOVE", 60, AMB)]:
+        d.rectangle([bx * s, 300 * s, (bx + bw) * s, 320 * s], outline=EDGE, width=s)
         t(lbl, bx + 6, 304, 10, fill=col, bold=True)
 
     # add location panel

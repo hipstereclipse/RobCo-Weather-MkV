@@ -59,6 +59,8 @@ FTACT = ("Consolas", 11, "bold")   # compact action-bar buttons
 
 PAD = 14   # outer margin from the window edge for top-level rows, so edge text
            # clears the rounded window corners instead of being clipped
+LOCATION_OK_MAX = 4
+LOCATION_WARN_MAX = 5
 
 FETCH_LABEL = "FETCH DATA ONLY"
 FETCH_BUSY_LABEL = "FETCHING DATA ..."
@@ -135,6 +137,13 @@ def rd(v):
     return "--" if v is None else str(int(round(v)))
 
 
+def kp_label(sp, i):
+    labels = (sp or {}).get("kpt") or []
+    if 0 <= i < len(labels) and labels[i]:
+        return str(labels[i]).upper()
+    return "T+%dH" % (i * 3)
+
+
 # ============================================================================
 #  DEVICE PREVIEW CANVAS
 #  Re-implements the WEATHER.JS layout against the same WEATHER.JSON so the
@@ -146,6 +155,7 @@ class DeviceCanvas(tk.Canvas):
         self.payload = None
         self.loc = 0
         self.tab = 0
+        self.item = 0
         self.scale = 1.0
         self.ox = 0.0
         self.oy = 0.0
@@ -157,17 +167,44 @@ class DeviceCanvas(tk.Canvas):
         locs = (payload or {}).get("locations") or []
         if self.loc >= len(locs):
             self.loc = 0
+        self._clamp_item()
         self.redraw()
 
     def set_tab(self, i):
         self.tab = i % len(TABS)
+        self._clamp_item()
         self.redraw()
 
     def step_loc(self, delta):
         locs = (self.payload or {}).get("locations") or []
         if locs:
             self.loc = (self.loc + delta) % len(locs)
+            self._clamp_item()
             self.redraw()
+
+    def step_item(self, delta):
+        n = self.item_count()
+        self.item = (self.item + delta + n) % n
+        self.redraw()
+
+    def item_count(self):
+        d = self.payload
+        locs = (d or {}).get("locations") or []
+        if not locs:
+            return 1
+        loc = locs[min(self.loc, len(locs) - 1)]
+        if self.tab == 0:
+            return 4
+        if self.tab == 1:
+            return max(1, min(5, len(loc.get("daily") or [])))
+        return max(1, min(24, len(((d or {}).get("space") or {}).get("kpf") or [])))
+
+    def _clamp_item(self):
+        n = self.item_count()
+        if self.item >= n:
+            self.item = n - 1
+        if self.item < 0:
+            self.item = 0
 
     def status_text(self):
         d = self.payload
@@ -175,10 +212,11 @@ class DeviceCanvas(tk.Canvas):
             return "NO DATA - run a fetch to preview the device screen"
         loc = d["locations"][self.loc]
         n = len(d["locations"])
+        ic = self.item_count()
         when = d.get("generated", "?")
         flag = "  [STALE]" if self.stale() else ""
-        return "SITE %d/%d  %s   synced %s%s" % (
-            self.loc + 1, n, loc.get("name", "?"), when, flag)
+        return "SITE %d/%d  ITEM %d/%d  %s   synced %s%s" % (
+            self.loc + 1, n, self.item + 1, ic, loc.get("name", "?"), when, flag)
 
     # --- scaled drawing primitives ----------------------------------------
     def _x(self, x):
@@ -282,7 +320,7 @@ class DeviceCanvas(tk.Canvas):
                       F_TINY, fill=DHOT)
         else:
             self.text("ROBCO INDUSTRIES (TM) TERMLINK", CORN, 6, F_TINY)
-        self.text("ATMOS [%d/%d]" % (self.loc + 1, n), DEV_W - CORN, 6,
+        self.text("%s [%d/%d]" % (TABS[self.tab], self.loc + 1, n), DEV_W - CORN, 6,
                   F_TINY, ax=1)
         self.hr(18)
 
@@ -388,6 +426,7 @@ class DeviceCanvas(tk.Canvas):
         c = loc.get("current", {}) or {}
         unit = d.get("units", {}).get("temp", "F")
         d0 = (loc.get("daily") or [{}])[0]
+        item = min(self.item, 3)
         self.box(14, 88, 236, 255, "LOCAL ATMOS")
         self.box(248, 88, DEV_W - 14, 255, "INSTRUMENTS")
 
@@ -404,6 +443,9 @@ class DeviceCanvas(tk.Canvas):
             self.text("OBS " + stamp(c["time"]), 24, 243, F_TINY, fill=DDIM)
 
         xL, xR = 260, DEV_W - 26
+        rows = [(104, 126), (138, 160), (172, 200), (212, 240)]
+        y0, y1 = rows[item]
+        self.rect(254, y0, DEV_W - 20, y1, fill=DHOT)
         self.stat_row("FEELS", rd(c.get("feels")) + unit, xL, xR, 112)
         self.stat_row("WIND", rd(c.get("wind")) + (" " + c["dir"] if c.get("dir") else ""),
                       xL, xR, 146)
@@ -412,51 +454,78 @@ class DeviceCanvas(tk.Canvas):
         self.stat_row("RAD UV", rd(c.get("uv")), xL, xR, 220)
         self.gauge(xL, 232, DEV_W - 286, c.get("uv"), 11)
 
-        self.box(14, 262, DEV_W - 14, 286, "RELAY")
-        sl = solar_line(d, loc)
-        hot = bool(sl) and ("AURORA" in sl or solar_active(d.get("space")))
-        self.text((sl or "SOLAR RELAY UNAVAILABLE")[:58], 24, 274, F_TINY,
-                  ay=0, fill=DHOT if hot else DFG)
+        if item == 0:
+            detail = "FEELS %s%s  ACTUAL %s%s" % (rd(c.get("feels")), unit,
+                                                   rd(c.get("temp")), unit)
+        elif item == 1:
+            detail = "WIND %s%s %s" % (rd(c.get("wind")),
+                                       (" " + c["dir"] if c.get("dir") else ""),
+                                       d.get("units", {}).get("wind", ""))
+        elif item == 2:
+            detail = "HUMID %s%%  RAIN %s%%" % (rd(c.get("humidity")), rd(d0.get("pop")))
+        else:
+            detail = "UV %s  %s" % (rd(c.get("uv")),
+                                    solar_line(d, loc) or "SOLAR QUIET")
+        self.box(14, 262, DEV_W - 14, 286, "SELECTED TELEMETRY")
+        hot = item == 3 and solar_active(d.get("space"))
+        self.text(detail[:36], 24, 274, F_SMALL, ay=0, fill=DHOT if hot else DFG)
 
     def view_forecast(self, loc):
         days = (loc.get("daily") or [])[:5]
-        self.box(14, 88, DEV_W - 14, 286, "FORECAST BUFFER")
+        item = min(self.item, max(0, len(days) - 1))
+        self.box(14, 88, DEV_W - 14, 222, "FORECAST BUFFER")
         self.text("5 ENTRIES  //  HI/LO  //  PRECIP CHANCE", 26, 103, F_TINY, fill=DDIM)
         colW = (DEV_W - 24) / 5
         for i, dday in enumerate(days):
             x = 12 + colW * i
             cx = x + colW / 2
             if i > 0:
-                self.line(x, 126, x, 274, fill=DDIM)
-            self.text(pad_hex(0xB000 + i * 0x10), cx, 119, F_TINY, ax=0, fill=DDIM)
-            self.text(dday.get("d", "?"), cx, 138, F_SMALL, ax=0)
-            self.draw_icon(dday.get("code", 0), cx, 166, 17, True)
-            self.text((dday.get("desc") or "--").upper()[:10], cx, 198, F_TINY, ax=0, fill=DDIM)
-            self.text("%s/%s" % (rd(dday.get("hi")), rd(dday.get("lo"))), cx, 218, F_SMALL, ax=0)
-            self.text(rd(dday.get("pop")) + "%", cx, 246, F_TINY, ax=0)
-            self.gauge(x + 13, 263, colW - 26, dday.get("pop"), 100)
+                self.line(x, 126, x, 216, fill=DDIM)
+            if i == item:
+                self.rect(x + 4, 122, x + colW - 4, 216, fill=DHOT)
+            self.text(dday.get("d", "?"), cx, 134, F_SMALL, ax=0)
+            self.draw_icon(dday.get("code", 0), cx, 164, 13, True)
+            self.text((dday.get("desc") or "--").upper()[:9], cx, 192, F_TINY, ax=0, fill=DDIM)
+            self.text("%s/%s %s%%" % (rd(dday.get("hi")), rd(dday.get("lo")),
+                      rd(dday.get("pop"))), cx, 207, F_TINY, ax=0)
 
-    def kp_graph(self, sp, loc, x0, y0, x1, y1):
+        dday = days[item] if days else {}
+        self.box(14, 232, DEV_W - 14, 286, "ENTRY DETAIL")
+        self.text(("%s  %s" % (dday.get("date", dday.get("d", "?")),
+                  (dday.get("desc") or "--").upper()))[:36],
+                  24, 251, F_SMALL)
+        self.text("HI/LO %s/%s" % (rd(dday.get("hi")), rd(dday.get("lo"))),
+                  24, 276, F_SMALL, ax=-1, ay=0)
+        self.text("RAIN %s%%" % rd(dday.get("pop")), DEV_W - 24, 276,
+                  F_SMALL, ax=1, ay=0)
+
+    def kp_graph(self, sp, loc, x0, y0, x1, y1, selected=0):
         kpf = sp.get("kpf", []) or []
         base, span = y1, y1 - y0
 
         def ky(kp):
             return base - (max(0, min(9, kp)) / 9.0) * span
 
+        self.text("KP", x0 - 18, y0 - 8, F_TINY)
         self.line(x0, y0, x0, y1)
         self.line(x0, y1, x1, y1)
+        self.text("0", x0 - 4, base, F_TINY, ax=1, ay=0, fill=DDIM)
         for v in (3, 6, 9):
             self.text(str(v), x0 - 2, ky(v), F_TINY, ax=1, ay=0, fill=DDIM)
+            self.line(x0 - 2, ky(v), x0 + 2, ky(v), fill=DDIM)
         needed = (loc.get("aurora") or {}).get("needed", 99)
         n = len(kpf) or 1
         bw = (x1 - x0) / n
         for i, kp in enumerate(kpf):
             bx0, bx1 = x0 + i * bw + 1, x0 + (i + 1) * bw - 1
             by = ky(kp)
-            if kp >= needed:
-                self.frect(bx0, by, bx1, base - 1)
+            if kp >= needed or i == selected:
+                self.frect(bx0, by, bx1, base - 1, fill=DHOT if i == selected else DFG)
             else:
                 self.rect(bx0, by, bx1, base - 1, fill=DDIM)
+            if i == selected:
+                self.rect(bx0 - 3, y0 - 2, bx1 + 3, base + 2, fill=DHOT, w=2)
+                self.rect(bx0 - 5, y0 - 4, bx1 + 5, base + 4, fill=DHOT)
         if needed <= 9:
             ty = ky(needed)
             dx = x0
@@ -467,7 +536,7 @@ class DeviceCanvas(tk.Canvas):
         for tk_ in sp.get("kpf_ticks", []) or []:
             tx = x0 + tk_["i"] * bw
             self.line(tx, base, tx, base + 3)
-            self.text(tk_["d"], tx, base + 4, F_TINY, ax=0)
+            self.text(str(tk_.get("d", ""))[:5], tx, base + 4, F_TINY, ax=0)
 
     def view_space(self, loc):
         sp = self.payload.get("space")
@@ -482,8 +551,9 @@ class DeviceCanvas(tk.Canvas):
         self.stat_row("KP NOW/PK", "%s / %s" % (sp.get("kp_now", "--"),
                       sp.get("kp_peak", "--")), 26, 226, 186)
         self.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 26, 220, F_TINY, fill=DDIM)
-        self.text("3-DAY PLANETARY K-INDEX", 262, 106, F_TINY, fill=DDIM)
-        self.kp_graph(sp, loc, 286, 124, DEV_W - 26, 222)
+        selected = min(self.item, max(0, len(sp.get("kpf") or []) - 1))
+        self.text("KP FORECAST UTC", 262, 106, F_TINY, fill=DDIM)
+        self.kp_graph(sp, loc, 286, 124, DEV_W - 26, 218, selected)
 
         self.box(14, 250, DEV_W - 14, 294, "AURORA ESTIMATE")
         au = loc.get("aurora", {}) or {}
@@ -492,9 +562,12 @@ class DeviceCanvas(tk.Canvas):
         chance = au.get("chance", "UNKNOWN")
         self.text(chance, DEV_W - 24, 268, F_HEAD, ax=1, ay=0, bold=True,
                   fill=DHOT if chance in ("LIKELY", "POSSIBLE") else DFG)
-        if "needed" in au:
-            self.text("NEEDS Kp %s   PEAK Kp %s" % (au["needed"], au.get("maxkp", "?")),
-                      24, 280, F_TINY)
+        kpf = sp.get("kpf") or []
+        kv = kpf[selected] if kpf else "--"
+        self.text(("%s  KP %s" % (kp_label(sp, selected), kv))[:24],
+                  24, 286, F_SMALL, ax=-1, ay=0)
+        self.text("NEED %s PK %s" % (au.get("needed", "?"), au.get("maxkp", "?")),
+                  DEV_W - 24, 286, F_SMALL, ax=1, ay=0)
 
     # --- compositing -------------------------------------------------------
     def _scanlines(self):
@@ -514,7 +587,6 @@ class DeviceCanvas(tk.Canvas):
 
         self.frect(0, 0, DEV_W, DEV_H, fill=DBG)
         self._scanlines()
-        self.rect(3, 3, DEV_W - 4, DEV_H - 4)
 
         d = self.payload
         if not d or not d.get("locations"):
@@ -522,6 +594,7 @@ class DeviceCanvas(tk.Canvas):
             return
         if self.loc >= len(d["locations"]):
             self.loc = 0
+        self._clamp_item()
         loc = d["locations"][self.loc]
         self.header()
         self.title(loc)
@@ -697,11 +770,15 @@ class App:
                                    selectbackground=SEL, selectforeground=AMBER,
                                    bd=0, highlightthickness=0, activestyle="none")
         self.loc_list.pack(fill="both", expand=True)
+        self.loc_capacity_lbl = tk.Label(left, text="", font=FTSM, bg=BG,
+                                         fg=DIM, anchor="w")
+        self.loc_capacity_lbl.pack(fill="x", pady=(6, 0))
         lb = tk.Frame(left, bg=BG)
         lb.pack(fill="x", pady=(8, 0))
         self._btn(lb, "UP", lambda: self.move(-1)).pack(side="left")
         self._btn(lb, "DN", lambda: self.move(1)).pack(side="left", padx=4)
         self._btn(lb, "REMOVE", self.remove_location, accent=True).pack(side="right")
+        self._btn(lb, "RESET DEFAULTS", self.reset_locations).pack(side="right", padx=4)
 
         right = self._frame(body, "ADD LOCATION  (search anywhere on Earth)")
         right.grid(row=0, column=1, sticky="nsew", padx=(7, 0))
@@ -784,6 +861,8 @@ class App:
         nav.pack(side="left")
         self._btn(nav, "< SITE", lambda: self._preview_loc(-1)).pack(side="left")
         self._btn(nav, "SITE >", lambda: self._preview_loc(1)).pack(side="left", padx=(4, 0))
+        self._btn(nav, "< ITEM", lambda: self._preview_item(-1)).pack(side="left", padx=(12, 0))
+        self._btn(nav, "ITEM >", lambda: self._preview_item(1)).pack(side="left", padx=(4, 0))
 
         tabrow = tk.Frame(strip, bg=BG)
         tabrow.pack(side="right")
@@ -806,9 +885,14 @@ class App:
         self.preview.step_loc(delta)
         self._refresh_preview_status()
 
+    def _preview_item(self, delta):
+        self.preview.step_item(delta)
+        self._refresh_preview_status()
+
     def _preview_tab(self, i):
         self.preview.set_tab(i)
         self._refresh_tab_btns()
+        self._refresh_preview_status()
 
     def _refresh_tab_btns(self):
         for i, b in enumerate(self.tab_btns):
@@ -843,6 +927,23 @@ class App:
         for l in self.cfg["locations"]:
             self.loc_list.insert("end", " %-22s %s"
                                  % (l.get("name", "?"), l.get("region", "")))
+        self._refresh_location_capacity()
+
+    def _refresh_location_capacity(self):
+        n = len(self.cfg.get("locations") or [])
+        if n == 0:
+            text, color = "NO LOCATIONS SAVED", AMBER
+        elif n <= LOCATION_OK_MAX:
+            text, color = "%d SAVED - LIKELY OK FOR DEVICE CACHE" % n, DIM
+        elif n <= LOCATION_WARN_MAX:
+            text, color = "%d SAVED - NEAR THE %d-BYTE DEVICE CACHE LIMIT" % (
+                n, core.DEVICE_JSON_LIMIT), AMBER
+        else:
+            text, color = "%d SAVED - LIKELY TOO MANY; REMOVE SOME BEFORE SYNC" % n, AMBER
+        try:
+            self.loc_capacity_lbl.configure(text=text, fg=color)
+        except AttributeError:
+            pass
 
     def update_output_label(self):
         self.out_lbl.configure(text="OUTPUT  ->  " + core.resolve_output(self.cfg))
@@ -871,6 +972,18 @@ class App:
         core.save_config(self.cfg)
         self.refresh_locations()
         self.log("Removed %s." % removed.get("name"))
+
+    def reset_locations(self):
+        ok = messagebox.askyesno(
+            "Reset saved locations",
+            "Replace the saved location list with the original defaults?",
+            parent=self.root)
+        if not ok:
+            return
+        self.cfg["locations"] = [dict(loc) for loc in core.DEFAULT_LOCATIONS]
+        core.save_config(self.cfg)
+        self.refresh_locations()
+        self.log("Restored original default locations.")
 
     def search(self):
         q = self.search_var.get().strip()
