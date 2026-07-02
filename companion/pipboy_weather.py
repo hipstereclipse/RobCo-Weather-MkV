@@ -15,8 +15,14 @@
 #    Add a location:     python pipboy_weather.py --add "Goodsprings, NV"
 #    Set SD output dir:  python pipboy_weather.py --sd E:\        (--fetch too)
 #    Use Celsius:        python pipboy_weather.py --units C --fetch
+#    Send over USB:      python pipboy_weather.py --usb           (no SD card needed)
+#    USB + app files:    python pipboy_weather.py --usb-install
+#    List serial ports:  python pipboy_weather.py --list-ports
 #
 #  The Pip-Boy app reads:  <SD>/USER/WEATHER.JSON
+#  USB transfer writes that same path over the device's serial console, so you
+#  never have to remove the microSD card. It needs pyserial (pip install
+#  pyserial) and pipboy_serial.py sitting next to this file.
 # ============================================================================
 
 import argparse
@@ -548,6 +554,127 @@ def do_fetch(cfg):
     write_payload(cfg, payload)
 
 
+# ------------------------------------------------------------------ USB sync -
+#  Push data (and optionally the app files) straight to a USB-connected
+#  Pip-Boy, so the user never has to pop the microSD card out. This talks to
+#  the device's Espruino console over USB serial; see pipboy_serial.py for the
+#  full explanation of why the Pip-Boy is a serial console and not a USB drive.
+def _usb_module():
+    """Import the USB helper lazily so this script still runs without it.
+
+    pipboy_serial only needs pyserial when a transfer actually happens, so a
+    missing pyserial surfaces later as a clear SerialUnavailable message.
+    """
+    try:
+        import pipboy_serial
+        return pipboy_serial
+    except ImportError:
+        raise RuntimeError(
+            "USB transfer needs pipboy_serial.py next to this script "
+            "(and the pyserial package: pip install pyserial).")
+
+
+def _usb_progress(name, done, total):
+    pct = 100 * done // total if total else 100
+    sys.stdout.write("\r  > %-24s %3d%%" % (name, pct))
+    sys.stdout.flush()
+    if done >= total:
+        sys.stdout.write("\n")
+
+
+def list_usb_ports():
+    """Print the serial ports most likely to be the Pip-Boy, best guess first."""
+    try:
+        usb = _usb_module()
+        cands = usb.list_candidates()
+    except Exception as e:
+        print("  ! %s" % e)
+        return
+    print("Likely serial ports (best guess first):")
+    for c in cands:
+        vid = ("[%04X:%04X]" % (c["vid"], c["pid"])) if c.get("vid") else ""
+        print("  %-16s score=%d  %s %s"
+              % (c["device"], c["score"], c["description"], vid))
+    if not cands:
+        print("  (none found - plug the Pip-Boy in with a data-capable USB-C cable)")
+
+
+def do_usb_sync(cfg, install=False, port=None):
+    """Fetch live data and send it to a USB-connected Pip-Boy.
+
+    Data is written to USER/WEATHER.JSON on the card - exactly where the
+    on-device app looks. With install=True the app files (WEATHER.JS +
+    APPINFO/*) are sent too, pulled from the same source the SD install uses
+    (GitHub, or the local app-source folder in the config).
+    """
+    if not cfg["locations"]:
+        print("  ! no locations configured. Add some first.")
+        return
+    try:
+        usb = _usb_module()
+    except RuntimeError as e:
+        print("  ! %s" % e)
+        return
+
+    # 1. build the weather payload and serialize it to a temp file
+    payload = build_payload(cfg)
+    if not payload["locations"]:
+        print("  ! nothing fetched (check your connection).")
+        return
+    tmp_json = tempfile.mktemp(prefix="weather_", suffix=".json")
+    with open(tmp_json, "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"))
+    size = os.path.getsize(tmp_json)
+    print("  > payload: %d location(s), %d bytes"
+          % (len(payload["locations"]), size))
+    if size > DEVICE_JSON_LIMIT:
+        print("    ! cache is large for the Pip-Boy app; remove locations and sync again")
+
+    # 2. optionally resolve the device app files (same sources as the SD install)
+    pairs = []
+    tmp_app = None
+    try:
+        if install:
+            if (cfg.get("app_source") or "").strip() == "github":
+                app_files, tmp_app = download_app_files()
+            else:
+                src_dir = (cfg.get("app_source_dir") or "").strip() or PROJECT_ROOT
+                tag = "" if (cfg.get("app_source_dir") or "").strip() else "  (bundled)"
+                print("  > app source: local folder %s%s" % (src_dir, tag))
+                app_files = find_app_files(src_dir)
+            pairs.extend((src, rel.replace("\\", "/")) for src, rel in app_files)
+
+        # data last, so it still lands even when the app files are unchanged
+        pairs.append((tmp_json, "USER/WEATHER.JSON"))
+
+        # 3. transfer over USB (auto-detects the port unless one was given)
+        print("  > looking for a USB-connected Pip-Boy ...")
+        res = usb.transfer_files(pairs, port=port, progress=_usb_progress)
+    except (usb.SerialUnavailable, usb.PipBoyNotFound, usb.TransferError) as e:
+        print("  ! USB transfer failed: %s" % e)
+        return
+    finally:
+        try:
+            os.remove(tmp_json)
+        except OSError:
+            pass
+        if tmp_app:
+            shutil.rmtree(tmp_app, ignore_errors=True)
+
+    print("  > device: %s on %s" % (res["board"], res["port"]))
+    for r in res["files"]:
+        state = "verified" if r["verified"] else (
+            "written (unverified)" if r["verified"] is False else "written")
+        print("    %-24s %6d bytes  %s" % (r["path"], r["bytes"], state))
+    if not payload.get("space"):
+        print("  (space-weather endpoints were unavailable; weather data was still sent)")
+    if install:
+        print("  > app files sent - reboot the Pip-Boy so it lists the app, then")
+        print("    open Weather. A data-only sync (--usb) just needs the app reopened.")
+    else:
+        print("  > done - open (or reopen) the Weather app on the Pip-Boy.")
+
+
 # ------------------------------------------------------------ interactive ----
 def print_locations(cfg):
     if not cfg["locations"]:
@@ -626,6 +753,8 @@ def interactive(cfg):
         print("  [3] Remove location")
         print("  [4] Toggle units (F/C)")
         print("  [5] Set SD card path")
+        print("  [6] Transfer to Pip-Boy over USB (data only)")
+        print("  [7] Transfer over USB (app files + data)")
         print("  [q] Quit")
         choice = input(" > ").strip().lower()
         if choice == "1":
@@ -638,6 +767,10 @@ def interactive(cfg):
             menu_units(cfg)
         elif choice == "5":
             menu_sd(cfg)
+        elif choice == "6":
+            do_usb_sync(cfg, install=False)
+        elif choice == "7":
+            do_usb_sync(cfg, install=True)
         elif choice in ("q", "quit", "exit"):
             break
         else:
@@ -651,6 +784,15 @@ def main():
     ap.add_argument("--add", metavar="QUERY", help="add first geocode match for QUERY")
     ap.add_argument("--sd", metavar="PATH", help="set SD card root path")
     ap.add_argument("--units", choices=["F", "C"], help="temperature units")
+    ap.add_argument("--usb", action="store_true",
+                    help="fetch, then push data to a USB-connected Pip-Boy (no SD card needed)")
+    ap.add_argument("--usb-install", action="store_true",
+                    help="like --usb, but also send the device app files")
+    ap.add_argument("--port", metavar="PORT",
+                    help="serial port for USB transfer (e.g. COM5 or /dev/ttyACM0); "
+                         "auto-detected when omitted")
+    ap.add_argument("--list-ports", action="store_true",
+                    help="list likely serial ports for USB transfer and exit")
     args = ap.parse_args()
 
     cfg = load_config()
@@ -679,6 +821,12 @@ def main():
     if changed:
         save_config(cfg)
 
+    if args.list_ports:
+        list_usb_ports()
+        return
+    if args.usb or args.usb_install:
+        do_usb_sync(cfg, install=args.usb_install, port=args.port)
+        return
     if args.fetch:
         do_fetch(cfg)
         return
