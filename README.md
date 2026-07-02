@@ -52,17 +52,22 @@ the latest app files when they are missing.
 ## Previews
 
 The preview images are generated from `sample/WEATHER.JSON` by
-`companion/render_preview.py`.
+`companion/render_preview.py`:
 
-| Current | Forecast |
-| --- | --- |
-| ![Current conditions](previews/01_current.png) | ![Forecast](previews/02_forecast.png) |
+```bash
+python companion/render_preview.py
+```
+
+| Current | Forecast | Current + Solar |
+| --- | --- | --- |
+| ![Current conditions](previews/01_current.png) | ![Forecast](previews/02_forecast.png) | ![Current conditions with solar activity](previews/04_current_solar.png) |
 
 | Space Weather | Stale Cache |
 | --- | --- |
 | ![Space weather](previews/03_space_weather.png) | ![Stale warning](previews/05_stale_warning.png) |
 
-Companion GUI:
+Companion GUI with the relay control tab, app source controls, shared sync
+action bar, and terminal log:
 
 ![Companion GUI](previews/06_companion_gui.png)
 

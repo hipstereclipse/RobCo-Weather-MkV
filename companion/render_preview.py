@@ -538,11 +538,12 @@ def render_device(data, loc_i, view, caption, stale=False, item_mode=False, item
 # --------------------------------------------------------------- GUI mockup
 def render_gui():
     s = 2
-    W, H = 860 * s, 620 * s
+    W, H = 980 * s, 720 * s
     BGc, PANEL, EDGE, GREEN, DIMc, AMB, SELc = ((6, 18, 10), (11, 32, 20), (29, 92, 51),
         (70, 255, 120), (47, 157, 84), (255, 182, 66), (16, 59, 34))
     img = Image.new("RGB", (W, H), BGc)
     d = ImageDraw.Draw(img)
+    w = W / s
 
     def t(txt, x, y, size, fill=GREEN, bold=False, anchor="la"):
         d.text((x * s, y * s), txt, font=font(size * s, bold), fill=fill, anchor=anchor)
@@ -552,73 +553,94 @@ def render_gui():
         d.rectangle([(x0 + 6) * s, (y0 - 7) * s, (x0 + 18 + len(label) * 7) * s, (y0 + 4) * s], fill=BGc)
         t(" " + label + " ", x0 + 8, y0 - 11, 9, fill=DIMc)
 
+    def button(x0, y0, x1, y1, label, fill=GREEN, bold=True, selected=False):
+        d.rectangle([x0 * s, y0 * s, x1 * s, y1 * s],
+                    fill=SELc if selected else PANEL, outline=EDGE, width=s)
+        t(label, (x0 + x1) / 2, (y0 + y1) / 2 + 1, 10, fill=fill,
+          bold=bold, anchor="mm")
+
     # header
     t("ROBCO WEATHER RELAY", 14, 12, 22, bold=True)
-    t("ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL", W / s - 14, 24, 9,
+    t("ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL", w - 14, 24, 9,
       fill=DIMc, anchor="ra")
-    d.rectangle([14 * s, 46 * s, (W / s - 14) * s, 48 * s], fill=EDGE)
+    d.rectangle([14 * s, 46 * s, (w - 14) * s, 48 * s], fill=EDGE)
+
+    # notebook tabs
+    d.rectangle([14 * s, 58 * s, (w - 14) * s, 88 * s], outline=EDGE, width=s)
+    button(24, 62, 180, 86, "RELAY CONTROL", selected=True)
+    button(184, 62, 346, 86, "DEVICE PREVIEW", fill=DIMc, selected=False)
 
     # saved locations panel
-    panel(14, 70, 420, 330, "SAVED LOCATIONS")
+    panel(14, 112, 472, 350, "SAVED LOCATIONS")
     locs = ["GOODSPRINGS            MOJAVE WASTELAND",
             "CAPITAL WASTELAND      WASHINGTON D.C.",
             "THE COMMONWEALTH       BOSTON, MASS.",
             "NORTHERN OUTPOST       ALASKA TERRITORY"]
     for i, l in enumerate(locs):
-        yy = 84 + i * 22
+        yy = 126 + i * 23
         if i == 3:
-            d.rectangle([18 * s, (yy - 2) * s, 414 * s, (yy + 16) * s], fill=SELc)
+            d.rectangle([18 * s, (yy - 2) * s, 466 * s, (yy + 16) * s], fill=SELc)
         t(" " + l, 20, yy, 11, fill=(AMB if i == 3 else GREEN))
-    t("4 SAVED - LIKELY OK FOR DEVICE CACHE", 20, 276, 9, fill=DIMc)
-    for bx, lbl, bw, col in [(18, "UP", 28, GREEN), (58, "DN", 28, GREEN),
-                             (246, "RESET DEFAULTS", 106, GREEN),
-                             (360, "REMOVE", 60, AMB)]:
-        d.rectangle([bx * s, 300 * s, (bx + bw) * s, 320 * s], outline=EDGE, width=s)
-        t(lbl, bx + 6, 304, 10, fill=col, bold=True)
+    t("4 SAVED - LIKELY OK FOR DEVICE CACHE", 20, 296, 9, fill=DIMc)
+    button(20, 318, 58, 338, "UP")
+    button(66, 318, 104, 338, "DN")
+    button(282, 318, 398, 338, "RESET DEFAULTS")
+    button(408, 318, 462, 338, "REMOVE", fill=AMB)
 
     # add location panel
-    panel(440, 70, 846, 330, "ADD LOCATION  (search anywhere on Earth)")
-    d.rectangle([446 * s, 84 * s, 760 * s, 106 * s], outline=EDGE, width=s)
-    t("goodsprings", 452, 88, 11)
-    d.rectangle([770 * s, 84 * s, 840 * s, 106 * s], outline=EDGE, width=s)
-    t("SEARCH", 778, 88, 10, bold=True)
+    panel(494, 112, 966, 350, "ADD LOCATION  (search anywhere on Earth)")
+    d.rectangle([502 * s, 126 * s, 858 * s, 150 * s], outline=EDGE, width=s)
+    t("goodsprings", 510, 131, 11)
+    button(870, 126, 958, 150, "SEARCH")
     results = ["Goodsprings, Nevada, United States",
                "Goodsprings, Alabama, United States",
                "Springs, Gauteng, South Africa"]
     for i, r in enumerate(results):
-        yy = 120 + i * 20
+        yy = 172 + i * 22
         if i == 0:
-            d.rectangle([446 * s, (yy - 2) * s, 840 * s, (yy + 15) * s], fill=SELc)
-        t("  " + r, 448, yy, 10, fill=(GREEN if i == 0 else DIMc))
-    d.rectangle([720 * s, 300 * s, 840 * s, 320 * s], outline=EDGE, width=s)
-    t("ADD SELECTED <-", 728, 304, 10, bold=True)
+            d.rectangle([502 * s, (yy - 2) * s, 958 * s, (yy + 16) * s], fill=SELc)
+        t("  " + r, 504, yy, 10, fill=(GREEN if i == 0 else DIMc))
+    button(826, 318, 958, 338, "ADD SELECTED <-")
 
     # settings
-    panel(14, 356, 846, 430, "SETTINGS")
-    t("UNITS", 24, 372, 9, fill=DIMc)
-    t("(X) DEG F   ( ) DEG C", 70, 370, 11)
-    t("SD CARD ROOT", 230, 372, 9, fill=DIMc)
-    d.rectangle([330 * s, 368 * s, 600 * s, 390 * s], outline=EDGE, width=s)
-    t("E:\\", 338, 372, 11)
-    d.rectangle([610 * s, 368 * s, 700 * s, 390 * s], outline=EDGE, width=s)
-    t("BROWSE...", 618, 372, 10, bold=True)
-    t("OUTPUT  ->  E:\\USER\\WEATHER.JSON", 24, 402, 9, fill=DIMc)
+    panel(14, 376, 966, 506, "SETTINGS")
+    t("UNITS", 24, 394, 9, fill=DIMc)
+    t("(X) DEG F   ( ) DEG C", 70, 392, 11)
+    t("SD CARD ROOT", 256, 394, 9, fill=DIMc)
+    d.rectangle([356 * s, 390 * s, 610 * s, 414 * s], outline=EDGE, width=s)
+    t("E:\\", 364, 395, 11)
+    button(622, 390, 724, 414, "BROWSE...")
+    t("APP SOURCE", 24, 428, 9, fill=DIMc)
+    t("( ) LATEST (GIT)   (X) LOCAL FOLDER", 118, 426, 10)
+    d.rectangle([428 * s, 422 * s, 800 * s, 446 * s], outline=EDGE, width=s)
+    t("C:\\Users\\Eclipse\\.claude\\Workspaces\\Weather", 436, 427, 9)
+    button(814, 422, 934, 446, "BROWSE...")
+    t("APP FILES  <-  C:\\Users\\Eclipse\\.claude\\Workspaces\\Weather  (bundled)",
+      24, 462, 9, fill=DIMc)
+    t("OUTPUT  ->  E:\\USER\\WEATHER.JSON", 24, 480, 9, fill=DIMc)
+    t("SYNC INCLUDES: OPEN-METEO WEATHER + NOAA SWPC SPACE WX", 24, 494, 9, fill=DIMc)
 
-    # fetch button
-    d.rectangle([14 * s, 444 * s, 846 * s, 486 * s], outline=AMB, width=2 * s)
-    t("FETCH DATA ONLY", W / (2 * s), 465, 22, fill=AMB, bold=True,
-      anchor="mm")
+    # shared action bar
+    labels = [("FETCH DATA ONLY", AMB), ("INSTALL SD + DATA", GREEN),
+              ("USB DATA ONLY", GREEN), ("USB INSTALL + DATA", GREEN)]
+    x0, gap = 14, 8
+    bw = (w - 28 - gap * 3) / 4
+    for i, (label, col) in enumerate(labels):
+        bx = x0 + i * (bw + gap)
+        d.rectangle([bx * s, 528 * s, (bx + bw) * s, 566 * s],
+                    outline=AMB if i == 0 else EDGE, width=2 * s if i == 0 else s)
+        t(label, bx + bw / 2, 548, 13, fill=col, bold=True, anchor="mm")
 
     # terminal log
-    panel(14, 500, 846, 600, "TERMINAL")
+    panel(14, 590, 966, 704, "TERMINAL")
     log = ["ROBCO WEATHER RELAY ONLINE.",
-           "Data: Open-Meteo (weather) + NOAA SWPC (space weather).",
-           "  > fetching space weather ...",
-           "  > fetching NORTHERN OUTPOST ...",
-           "  > wrote 4 location(s) -> E:\\USER\\WEATHER.JSON",
-           "SYNC COMPLETE - 4 location(s) cached."]
+           "Sync includes Open-Meteo weather + NOAA SWPC space weather.",
+           "DEVICE PREVIEW tab mirrors the on-device screen.",
+           "==== DEVICE INSTALL / UPDATE ====",
+           "  > installing 3 app file(s) ...",
+           "DEVICE UPDATE COMPLETE - app files plus 4 location(s) cached."]
     for i, line in enumerate(log):
-        t(line, 22, 512 + i * 14, 9, fill=GREEN)
+        t(line, 22, 604 + i * 15, 9, fill=GREEN)
 
     return scanlines(img)
 
