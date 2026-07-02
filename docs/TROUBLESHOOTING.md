@@ -69,8 +69,8 @@ Fix:
    renderer path that triggered this error.
 2. Re-run the companion and sync again.
 3. If the app shows `DATA TOO LARGE`, remove saved locations and sync again.
-   The companion prints the generated cache size after each sync and warns when
-   it is too large for the on-device app.
+   The companion prints the generated cache size after each sync and warns near
+   the on-device limit. Keep the cache under about 5.6 KB for reliable loading.
 
 ## App Shows EMPTY DATA FILE
 

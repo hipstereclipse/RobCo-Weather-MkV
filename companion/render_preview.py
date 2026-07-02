@@ -15,7 +15,6 @@
 # ============================================================================
 
 import json
-import math
 import os
 import re
 import sys
@@ -118,52 +117,55 @@ class Screen:
 
 # --------------------------------------------------------------- weather icons
 def draw_icon(g, code, cx, cy, r, is_day=True):
-    night = not is_day
+    def thick(x0, y0, x1, y1):
+        g.line(x0, y0, x1, y1, w=2)
 
     def sun(cx, cy, r):
-        if night:
-            g.disc(cx, cy, r * 0.65)
-            g.d.ellipse([(cx + r * 0.35 - r * 0.6) * S, (cy - r * 0.25 - r * 0.6) * S,
-                         (cx + r * 0.35 + r * 0.6) * S, (cy - r * 0.25 + r * 0.6) * S], fill=BG)
-            return
-        g.disc(cx, cy, r * 0.55)
-        for a in range(8):
-            ang = a * math.pi / 4
-            g.line(cx + math.cos(ang) * r * 0.85, cy + math.sin(ang) * r * 0.85,
-                   cx + math.cos(ang) * r * 1.25, cy + math.sin(ang) * r * 1.25)
+        d, s, q = r + 10, r + 3, r / 2
+        g.circle(cx, cy, r, w=2)
+        g.circle(cx, cy, r - 3)
+        thick(cx - d, cy, cx - s, cy)
+        thick(cx + s, cy, cx + d, cy)
+        thick(cx, cy - d, cx, cy - s)
+        thick(cx, cy + s, cx, cy + d)
+        thick(cx - q - 5, cy - q - 5, cx - q, cy - q)
+        thick(cx + q, cy - q, cx + q + 5, cy - q - 5)
+        thick(cx - q - 5, cy + q + 5, cx - q, cy + q)
+        thick(cx + q, cy + q, cx + q + 5, cy + q + 5)
 
     def cloud(cx, cy, r):
-        g.disc(cx - r * 0.55, cy + r * 0.15, r * 0.5)
-        g.disc(cx + r * 0.55, cy + r * 0.15, r * 0.5)
-        g.disc(cx, cy - r * 0.2, r * 0.6)
-        g.frect(cx - r * 0.95, cy + r * 0.15, cx + r * 0.95, cy + r * 0.6)
+        g.circle(cx - r / 2, cy + 2, r / 2, w=2)
+        g.circle(cx + r / 2, cy + 2, r / 2, w=2)
+        g.circle(cx, cy - 4, r / 2 + 3, w=2)
+        thick(cx - r, cy + r / 2 + 2, cx + r, cy + r / 2 + 2)
 
     def rain(cx, cy, r):
-        cloud(cx, cy - r * 0.25, r * 0.85)
+        cloud(cx, cy, r)
         for i in (-1, 0, 1):
-            x = cx + i * r * 0.5
-            g.line(x, cy + r * 0.55, x - r * 0.18, cy + r * 1.05, w=2)
+            x = cx + i * 8
+            thick(x, cy + r, x - 4, cy + r + 12)
 
     def snow(cx, cy, r):
-        cloud(cx, cy - r * 0.25, r * 0.85)
+        cloud(cx, cy, r)
         for i in (-1, 0, 1):
-            x, y = cx + i * r * 0.5, cy + r * 0.8
-            g.line(x - 5, y, x + 5, y)
-            g.line(x, y - 5, x, y + 5)
+            x, y = cx + i * 8, cy + r + 6
+            thick(x - 4, y, x + 4, y)
+            thick(x, y - 4, x, y + 4)
 
     def storm(cx, cy, r):
-        cloud(cx, cy - r * 0.25, r * 0.85)
-        g.poly([cx, cy + r * 0.4, cx - r * 0.3, cy + r * 0.4, cx, cy + r * 0.95,
-                cx + r * 0.1, cy + r * 0.6, cx + r * 0.35, cy + r * 0.6])
+        cloud(cx, cy, r)
+        thick(cx, cy + r - 3, cx - 6, cy + r + 9)
+        thick(cx - 6, cy + r + 9, cx + 2, cy + r + 5)
+        thick(cx + 2, cy + r + 5, cx - 1, cy + r + 15)
 
     def fog(cx, cy, r):
-        for i in range(4):
-            y = cy - r * 0.6 + i * r * 0.45
-            g.line(cx - r * (0.7 if i % 2 else 1), y, cx + r * (1 if i % 2 else 0.7), y, w=2)
+        for i in range(3):
+            y = cy + r + i * 6
+            thick(cx - r, y, cx + r, y)
 
     def partly(cx, cy, r):
-        sun(cx - r * 0.45, cy - r * 0.4, r * 0.65)
-        cloud(cx + r * 0.15, cy + r * 0.2, r * 0.8)
+        sun(cx - r / 2, cy - r / 2, max(5, r / 2))
+        cloud(cx + 4, cy + 3, r)
 
     if code == 0:
         sun(cx, cy, r)
@@ -369,7 +371,7 @@ def view_forecast(g, data, loc, item_i=0):
             g.rect(12 + colW * i + 4, 122, 12 + colW * (i + 1) - 4, 216, fill=HOT)
         g.text(pad_hex(0xB000 + i * 0x10), cx, 129, F_TINY, ax=0, fill=DIM)
         g.text(dday.get("d", "?"), cx, 146, F_SMALL, ax=0)
-        draw_icon(g, dday.get("code", 0), cx, 169, 15, True)
+        draw_icon(g, dday.get("code", 0), cx, 169, 10, True)
         g.text(dday.get("desc", "--").upper()[:9], cx, 192, F_TINY, ax=0, fill=DIM)
         g.text("%s/%s %s%%" % (round(dday.get("hi", 0)), round(dday.get("lo", 0)),
                round(dday.get("pop", 0))), cx, 207, F_TINY, ax=0)

@@ -2,7 +2,7 @@
   var G = (typeof h !== "undefined") ? h : (typeof g !== "undefined") ? g : null;
   var P = (typeof Pip !== "undefined") ? Pip : null;
   var PATHS = ["USER/WEATHER.JSON", "WEATHER.JSON", "USER/WEATHER.json"];
-  var MAX_DATA = 7000;
+  var MAX_DATA = 5600;
   var STALE_HOURS = 12;
   var TABS = ["ATMOS", "5-DAY", "SOLAR"];
   var CORN = 56; // horizontal inset for the top/bottom rows so the rounded
@@ -194,39 +194,24 @@
     font(1);
     text(unit(), x + 14, y + 6, -1, 0);
   }
-  function disk(cx, cy, r) {
-    try { G.fillCircle(cx, cy, r); }
-    catch (e) { G.fillRect(cx - r, cy - r, cx + r, cy + r); }
-  }
-  function bolt(cx, cy, r) {
-    try {
-      G.fillPoly([cx, cy + r / 4, cx - r / 3, cy + r / 4, cx - 1, cy + r,
-        cx + r / 4, cy + r / 2, cx + r / 2, cy + r / 2, cx + r / 8, cy + r * 7 / 5]);
-    } catch (e) {
-      G.drawLine(cx, cy + r / 4, cx - r / 3, cy + r);
-      G.drawLine(cx - r / 3, cy + r, cx + r / 5, cy + r / 2);
-      G.drawLine(cx + r / 5, cy + r / 2, cx, cy + r * 7 / 5);
-    }
-  }
   function thick(x0, y0, x1, y1) {
     G.drawLine(x0, y0, x1, y1);
     G.drawLine(x0 + 1, y0, x1 + 1, y1);
   }
   function sun(cx, cy, r) {
-    var i, a;
-    disk(cx, cy, Math.max(3, r * 2 / 3));
+    var d = r + 10, s = r + 3, q = r / 2;
     G.drawCircle(cx, cy, r);
-    for (i = 0; i < 8; i++) {
-      a = i * Math.PI / 4;
-      thick(cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4),
-        cx + Math.cos(a) * (r + 11), cy + Math.sin(a) * (r + 11));
-    }
+    G.drawCircle(cx, cy, r - 3);
+    thick(cx - d, cy, cx - s, cy);
+    thick(cx + s, cy, cx + d, cy);
+    thick(cx, cy - d, cx, cy - s);
+    thick(cx, cy + s, cx, cy + d);
+    thick(cx - q - 5, cy - q - 5, cx - q, cy - q);
+    thick(cx + q, cy - q, cx + q + 5, cy - q - 5);
+    thick(cx - q - 5, cy + q + 5, cx - q, cy + q);
+    thick(cx + q, cy + q, cx + q + 5, cy + q + 5);
   }
   function cloud(cx, cy, r) {
-    disk(cx - r / 2, cy + 2, r / 2);
-    disk(cx + r / 2, cy + 2, r / 2);
-    disk(cx, cy - 4, r / 2 + 3);
-    G.fillRect(cx - r, cy + 2, cx + r, cy + r / 2 + 2);
     G.drawCircle(cx - r / 2, cy + 2, r / 2);
     G.drawCircle(cx + r / 2, cy + 2, r / 2);
     G.drawCircle(cx, cy - 4, r / 2 + 3);
@@ -250,7 +235,9 @@
         thick(x, cy + r + 2, x, cy + r + 10);
       }
     } else if (code >= 95) {
-      bolt(cx, cy, r);
+      thick(cx, cy + r - 3, cx - 6, cy + r + 9);
+      thick(cx - 6, cy + r + 9, cx + 2, cy + r + 5);
+      thick(cx + 2, cy + r + 5, cx - 1, cy + r + 15);
     } else if (code === 45 || code === 48) {
       for (i = 0; i < 3; i++) thick(cx - r, cy + r + i * 6, cx + r, cy + r + i * 6);
     }
@@ -327,7 +314,7 @@
       text(padHex(0xB000 + i * 0x10), cx, 129, 0, -1);
       font(1);
       text(d.d || ("D" + (i + 1)), cx, 146, 0, -1);
-      wxIcon(d.code, cx, 169, 15);
+      wxIcon(d.code, cx, 169, 10);
       font(0);
       text(cut((d.desc || "--").toUpperCase(), 9), cx, 192, 0, -1);
       hi = d.hi === undefined ? "--" : Math.round(d.hi);

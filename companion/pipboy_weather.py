@@ -52,7 +52,7 @@ KP_AURORA_LAT = [66.5, 64.5, 62.4, 60.4, 58.3, 56.3, 54.2, 52.2, 50.1, 48.1]
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "weather_config.json")
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEVICE_JSON_LIMIT = 7000
+DEVICE_JSON_LIMIT = 5600
 
 # Each device app file: where it lives inside an app-source tree (parts under
 # the source root) and where it must land on the SD card (parts under <SD>).
