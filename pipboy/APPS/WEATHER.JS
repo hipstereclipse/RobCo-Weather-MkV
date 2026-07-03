@@ -389,13 +389,13 @@
     if (dir === 0) st.m = st.m ? 0 : 1;
     else if (st.m) setSel(sel() + dir, loc);
     else st.l = (st.l + dir + st.d.locations.length) % st.d.locations.length;
-    Pip.audioStartVar(Pip.audioBuiltin("CLICK"));
+    Pip.playSound("SCROLL");
     draw();
   }
   function knob2(dir) {
     st.t = (st.t + (dir || 1) + TABS.length) % TABS.length;
     if (st.d) clampSel(st.d.locations[st.l] || {});
-    Pip.audioStartVar(Pip.audioBuiltin("CLICK"));
+    Pip.playSound("TAB");
     draw();
   }
 
