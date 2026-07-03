@@ -74,7 +74,7 @@ USB_INSTALL_BUSY_LABEL = "INSTALLING VIA USB ..."
 
 # --- device logical screen (the Pip-Boy 3000 runs LANDSCAPE ~480x320) -------
 DEV_W, DEV_H = 480, 320
-CORN = 40                      # horizontal inset matching WEATHER.JS' CORN
+CORN = 56                      # horizontal inset matching WEATHER.JS' CORN
 STALE_HOURS = 12
 TABS = ["ATMOS", "5-DAY", "SOLAR"]
 F_BIG, F_HEAD, F_SMALL, F_TINY = 56, 24, 16, 12   # logical font tiers

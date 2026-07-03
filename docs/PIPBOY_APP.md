@@ -109,40 +109,22 @@ table. Treat them as a fun guide, not a scientific guarantee.
 The companion writes a UTC epoch timestamp into `WEATHER.JSON`. The app uses
 that timestamp to calculate cache age.
 
-By default, data older than 12 hours is stale:
-
-```javascript
-var STALE_HOURS = 12;
-```
+By default, data older than 12 hours is stale (the threshold in `stale()`).
 
 When stale, the header's left label is replaced with a `! DATA <age> OLD - SYNC`
 warning and the footer switches from `UPD` to `!`.
 
-Change `STALE_HOURS` in `WEATHER.JS` if you want a different threshold.
+Change the `12` in `stale()` in `WEATHER.JS` if you want a different threshold.
 
 ## Display Assumptions
 
-The app is designed for a landscape screen around 480 by 320 pixels. It reads
-`getWidth()` and `getHeight()` at runtime so it can adapt to small firmware
-differences, but the layout is tuned for the Pip-Boy 3000.
+The app targets the Pip-Boy 3000's fixed landscape display: 480 by 320 pixels,
+hardcoded throughout the layout.
 
 The Pip-Boy glass has rounded corners that clip pixels near each corner. The
-header and footer rows are therefore inset horizontally by `CORN` (56 px) and
-nudged down/up with `TOP` and `FOOT` so their text clears the curve. If your
-unit's corners are more aggressively rounded and text still clips, increase
-`CORN` or `FOOT` near the top of `WEATHER.JS`.
-
-The app resolves the graphics object defensively:
-
-```javascript
-var G = (typeof h !== "undefined") ? h
-      : (typeof g !== "undefined") ? g
-      : null;
-```
-
-Font helpers also try multiple font APIs. If your firmware exposes different
-font names or a different graphics object, adjust the font helpers and graphics
-resolution near the top of `WEATHER.JS`.
+header and footer rows are therefore inset horizontally by `CORN` (56 px) so
+their text clears the curve. If your unit's corners are more aggressively
+rounded and text still clips, increase `CORN` near the top of `WEATHER.JS`.
 
 ## Icon
 
@@ -165,7 +147,6 @@ If the firmware expects a different icon size, regenerate the image and keep
 
 The app can show:
 
-- `NO FS MODULE`: the firmware did not expose the filesystem module.
 - `NO WEATHER DATA`: no cache file was found.
 - `EMPTY DATA FILE`: the cache exists but contains no locations.
 - `BAD DATA FORMAT`: the cache could not be parsed as expected JSON.

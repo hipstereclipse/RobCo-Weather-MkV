@@ -153,32 +153,33 @@ The companion itself does not require Pillow.
 
 ## Text Looks Wrong on the Pip-Boy
 
-Firmware builds can expose different graphics objects or font names.
+Firmware builds can expose different font names for `h.setFont()`.
 
 Fix:
 
 1. Open `pipboy/APPS/WEATHER.JS`.
-2. Check the graphics resolution near the top:
+2. Check the `font(n)` helper near the top:
 
    ```javascript
-   var G = (typeof h !== "undefined") ? h
-         : (typeof g !== "undefined") ? g
-         : null;
+   function font(n) {
+     if (n === 3) { h.setFont("Monofonto23", 2); return; }
+     if (n === 2) { h.setFont("Monofonto23"); return; }
+     h.setFont("6x8", n === 1 ? 2 : 1);
+   }
    ```
 
-3. Adjust `fontBig`, `fontHead`, `fontSmall`, and `fontTiny` for your firmware.
+3. Adjust the font names/sizes passed to `h.setFont()` for your firmware.
 
 ## App Layout Is Cropped
 
-The layout is tuned for landscape, roughly 480 by 320 pixels. If your firmware
-reports a different usable size, some text may need adjustment.
+The layout is hardcoded for the Pip-Boy 3000's fixed 480 by 320 landscape
+display.
 
 Fix:
 
 - Confirm the app is running in landscape mode.
 - Shorten location names and region labels.
-- Adjust layout constants in `WEATHER.JS` if your firmware reports different
-  dimensions.
+- Adjust the layout constants in `WEATHER.JS` if your unit's display differs.
 
 ## Aurora Looks Too Optimistic or Too Conservative
 
