@@ -26,6 +26,21 @@ Fix:
 2. Reboot the Pip-Boy.
 3. If it still does not appear, restore from backup and copy the files again.
 
+## SyntaxError: Got EOF expected `}`
+
+The installed `USER/WEATHER.js` is incomplete. The repository build is 8,940
+bytes and has balanced braces; EOF at launch means the copy on the SD card
+ended before the closing code arrived.
+
+Fix:
+
+1. Reinstall with the current web installer, which acknowledges every USB
+   chunk and verifies the final file size, or copy `pipboy/WEATHER.min.js`
+   directly to `USER/WEATHER.js` on the mounted SD card.
+2. Confirm the installed file is exactly the same size as
+   `pipboy/WEATHER.min.js` (8,940 bytes for v1.0.1).
+3. Safely eject the card if it was mounted, then reboot the Pip-Boy.
+
 ## App Hangs on the Launch/Loading Screen (No Error, Reboot Needed)
 
 Selecting Weather under INV > APPS does nothing, or the unit sits on the app
