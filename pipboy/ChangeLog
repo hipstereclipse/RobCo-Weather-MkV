@@ -1,3 +1,25 @@
+1.0.1 (2026-07-12)
+https://github.com/hipstereclipse/RobCo-Weather-MkV
+- Fix the app hanging on the launch screen (dead controls, reboot required).
+  v1.0.0 shipped a non-invoked closure returning {id, remove, ...} - the
+  Pip-Boy 3000's loader contract. The Mk V firmware runs USER/*.js as a plain
+  top-to-bottom script and never invokes such a closure, so the app never
+  drew or registered inputs. The app now executes at load like the official
+  Wand Company apps: submenu-takeover preamble, invoked closure, teardown
+  registered on the Pip.remove / Pip.removeSubmenu hooks (fired on mode-dial
+  navigate-away).
+- Render directly to g in the device theme color (g.theme.fg) instead of the
+  h / bC / g resolver; h does not exist on the Mk V and un-flipped bC drawing
+  is never shown. Layout, views, controls, and data format are unchanged.
+- Ensure knob handler exclusivity with Pip.removeAllListeners("knob1"/"knob2")
+  before attaching, per the official inputs documentation. Torch keeps its
+  stock flashlight behavior.
+- Ship WEATHER.min.js as plain terser output; drop the Espruino-CLI
+  pretokenise pass (no shipping Mk V app is pretokenised, and a parse failure
+  presents as a silent hang).
+- Rename package.json to metadata.json and align fields with the pip-boy.com
+  registry schema (adds tags, storageOptional).
+
 1.0.0 (2026-07-11)
 https://github.com/hipstereclipse/RobCo-Weather-MkV
 - Port RobCo Weather from the Pip-Boy 3000 (hipstereclipse/Robco-Weather) to

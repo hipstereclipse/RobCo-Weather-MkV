@@ -13,7 +13,7 @@ companion/render_preview.py      Pillow renderer for preview PNGs.
 companion/make_icon.py           PNG registry-icon generator.
 pipboy/WEATHER.js                On-device app (readable source).
 pipboy/WEATHER.min.js            Minified build installed as USER/WEATHER.js.
-pipboy/package.json              Registry metadata (id, icon, storage map).
+pipboy/metadata.json             Registry metadata (id, icon, storage map).
 pipboy/APPINFO/weather.json      Optional on-card friendly name.
 pipboy/assets/icon.png           Generated registry icon.
 pipboy/ChangeLog                 App version history.
@@ -110,26 +110,26 @@ space-weather endpoint should not prevent normal weather output.
 
 ## Editing the Pip-Boy App
 
-The app is written as a self-contained, non-invoked function expression
-because that is the shape the Mk V app loader expects (the same "Form A"
-contract the Pip-Boy 3000 used). Preserve the returned object with:
+The app is a plain script that the Mk V firmware runs top to bottom, the same
+way the official Wand Company apps run (see the App Structure section of
+[Pip-Boy App](PIPBOY_APP.md)). Preserve this shape:
 
-```javascript
-{
-  id: "WEATHER",
-  notDefault: true,
-  fullscreen: true,
-  remove: function () { ... }
-}
-```
+- The submenu-takeover preamble at the top of the file (guarded
+  `Pip.removeSubmenu()` / `Pip.remove()` calls) must stay first.
+- The main closure must stay **invoked** (`(function() { ... })();`) — a
+  non-invoked function expression never runs on this device and leaves the
+  user stuck on the app launch screen.
+- Teardown must stay registered on `Pip.remove` and `Pip.removeSubmenu`, and
+  must remove every listener the app adds.
 
 Compatibility practices:
 
-- Keep `DATA_PATHS` backwards-compatible unless there is a strong reason to
-  remove a fallback.
-- Keep `STALE_HOURS` near the top for easy user tuning.
-- Keep font and graphics-object fallbacks near the top (the `G` resolver picks
-  `h` under the loader and falls back to the `bC`/`g` firmware buffers).
+- Keep `PATHS` backwards-compatible unless there is a strong reason to remove
+  a fallback.
+- Keep the stale threshold (the `12` in `stale()`) easy to find for user
+  tuning.
+- Draw through `g` with the device theme color (`g.theme.fg`) so the user's
+  chosen UI color is respected.
 - Keep every draw inside the Mk V visible window, `x in [38, 438]`.
 - Feature-detect non-core `Pip.*` calls (e.g. `Pip.playSound`) and degrade
   gracefully when a firmware lacks them.
@@ -139,12 +139,14 @@ Compatibility practices:
 After editing `pipboy/WEATHER.js`, rebuild the shipping artifact:
 
 ```bash
-terser pipboy/WEATHER.js -c negate_iife=false,side_effects=false -o pipboy/WEATHER.min.js
-espruino pipboy/WEATHER.min.js --config PRETOKENISE=2 --config SET_TIME_ON_WRITE=false -o pipboy/WEATHER.min.js
+npx terser pipboy/WEATHER.js -c negate_iife=false,side_effects=false -m -o pipboy/WEATHER.min.js
 ```
 
-The minified file must stay functionally identical to the source and keep the
-non-invoked `(function() { ... })` shape - no trailing `()`.
+Do not pretokenise the build: shipping Mk V apps (official and pip-boy.com)
+are plain minified text, and a pretokenised file that fails to parse presents
+as a silent hang on the device. The minified file must stay functionally
+identical to the source; a quick check is to run both against a mocked
+`Pip`/`g`/`E` harness and diff the draw-call traces.
 
 ## Editing the Companion
 

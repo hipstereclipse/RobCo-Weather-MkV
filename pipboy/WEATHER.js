@@ -1,14 +1,27 @@
+// RobCo Weather for the Pip-Boy 3000 Mk V.
+//
+// The Mk V firmware loads USER/*.js as a bare script and runs it top to
+// bottom; nothing ever invokes a returned closure (that is the Pip-Boy 3000
+// loader contract, not this device's). When the user turns the mode dial
+// away, the firmware calls the Pip.remove / Pip.removeSubmenu hooks, so all
+// teardown is registered there - the same pattern as the official asteroid
+// and text apps in thewandcompany/pip-boy.
+
+// Take over cleanly from the INV > APPS submenu (official app preamble).
+if (Pip.removeSubmenu) Pip.removeSubmenu();
+delete Pip.removeSubmenu;
+if (Pip.remove) Pip.remove();
+delete Pip.remove;
+
 (function() {
   const PATHS = ["USER/WEATHER.JSON", "WEATHER.JSON", "USER/WEATHER.json"];
   const TABS = ["ATMOS", "5-DAY", "SOLAR"];
   const CORN = 56; // horizontal inset for the top/bottom rows so the case
                    // opening does not clip the header/footer text. Bump this
                    // higher still if a unit's opening is even tighter.
-  // Mk V: the drawing surface is 480x320 landscape, but the case shroud hides
-  // x < 38 and x > 438 (the native firmware exposes this content window as
-  // BGRECT). Every draw below stays inside x in [38, 438].
-  const G = (typeof h !== "undefined" && h) ? h
-          : (typeof bC !== "undefined" && bC) ? bC : g;
+  // Mk V: g renders straight to the 480x320 landscape LCD, but the case
+  // shroud hides x < 38 and x > 438. Every draw below stays inside
+  // x in [38, 438].
   const st = { d: null, e: null, l: 0, t: 0, m: 0, a: 0, f: 0, k: 0 };
 
   function num(v) { return v === undefined || v === null ? "--" : Math.round(v) + ""; }
@@ -18,32 +31,32 @@
     return s.length > n ? s.substr(0, n) : s;
   }
   function font(n) {
-    if (n === 3) { G.setFont("Monofonto23", 2); return; }
-    if (n === 2) { G.setFont("Monofonto23"); return; }
-    G.setFont("6x8", n === 1 ? 2 : 1);
+    if (n === 3) { g.setFont("Monofonto23", 2); return; }
+    if (n === 2) { g.setFont("Monofonto23"); return; }
+    g.setFont("6x8", n === 1 ? 2 : 1);
   }
   function text(s, x, y, ax, ay) {
-    G.setFontAlign(ax === undefined ? 0 : ax, ay === undefined ? -1 : ay);
-    G.drawString(s, x, y);
+    g.setFontAlign(ax === undefined ? 0 : ax, ay === undefined ? -1 : ay);
+    g.drawString(s, x, y);
   }
   function box(x0, y0, x1, y1, label) {
-    G.drawRect(x0, y0, x1, y1);
+    g.drawRect(x0, y0, x1, y1);
     if (label) {
       font(0);
-      G.clearRect(x0 + 7, y0, x0 + 15 + label.length * 6, y0 + 8);
+      g.clearRect(x0 + 7, y0, x0 + 15 + label.length * 6, y0 + 8);
       text(" " + label + " ", x0 + 9, y0 - 1, -1, -1);
     }
   }
   function gauge(x, y, w, v, max) {
-    G.drawRect(x, y, x + w, y + 6);
+    g.drawRect(x, y, x + w, y + 6);
     if (v === undefined || v === null || !isFinite(v)) return;
     const f = E.clip(Math.round((w - 2) * v / max), 0, w - 2);
-    if (f > 0) G.fillRect(x + 1, y + 1, x + f, y + 5);
+    if (f > 0) g.fillRect(x + 1, y + 1, x + f, y + 5);
   }
   function scanMask() {
-    for (let y = 33; y < 288; y += 8) G.clearRect(38, y, 438, y);
+    for (let y = 33; y < 288; y += 8) g.clearRect(38, y, 438, y);
   }
-  function hr(y) { G.drawLine(40, y, 436, y); }
+  function hr(y) { g.drawLine(40, y, 436, y); }
   function stamp(s) {
     if (!s) return "";
     s = ("" + s).replace("T", " ");
@@ -121,7 +134,7 @@
   }
   function clampSel(loc) { setSel(sel(), loc); }
   function hilite(x0, y0, x1, y1, on) {
-    if (on) G.drawRect(x0, y0, x1, y1);
+    if (on) g.drawRect(x0, y0, x1, y1);
   }
   function header() {
     font(0);
@@ -152,7 +165,7 @@
     font(0);
     for (let i = 0; i < TABS.length; i++) {
       const x = 40 + i * bw;
-      if (i === st.t) G.drawRect(x + 2, y, x + bw - 2, y + 15);
+      if (i === st.t) g.drawRect(x + 2, y, x + bw - 2, y + 15);
       text((i === st.t ? "> " : "  ") + TABS[i], x + bw / 2, y + 8, 0, 0);
     }
     hr(85);
@@ -165,18 +178,18 @@
   }
 
   function degree(x, y) {
-    G.drawCircle(x + 5, y + 4, 4);
+    g.drawCircle(x + 5, y + 4, 4);
     font(1);
     text(unit(), x + 14, y + 6, -1, 0);
   }
   function thick(x0, y0, x1, y1) {
-    G.drawLine(x0, y0, x1, y1);
-    G.drawLine(x0 + 1, y0, x1 + 1, y1);
+    g.drawLine(x0, y0, x1, y1);
+    g.drawLine(x0 + 1, y0, x1 + 1, y1);
   }
   function sun(cx, cy, r) {
     const d = r + 10, s = r + 3, q = r / 2;
-    G.drawCircle(cx, cy, r);
-    G.drawCircle(cx, cy, r - 3);
+    g.drawCircle(cx, cy, r);
+    g.drawCircle(cx, cy, r - 3);
     thick(cx - d, cy, cx - s, cy);
     thick(cx + s, cy, cx + d, cy);
     thick(cx, cy - d, cx, cy - s);
@@ -187,9 +200,9 @@
     thick(cx + q, cy + q, cx + q + 5, cy + q + 5);
   }
   function cloud(cx, cy, r) {
-    G.drawCircle(cx - r / 2, cy + 2, r / 2);
-    G.drawCircle(cx + r / 2, cy + 2, r / 2);
-    G.drawCircle(cx, cy - 4, r / 2 + 3);
+    g.drawCircle(cx - r / 2, cy + 2, r / 2);
+    g.drawCircle(cx + r / 2, cy + 2, r / 2);
+    g.drawCircle(cx, cy - 4, r / 2 + 3);
     thick(cx - r, cy + r / 2 + 2, cx + r, cy + r / 2 + 2);
   }
   function wxIcon(code, cx, cy, r) {
@@ -243,8 +256,8 @@
 
     wxIcon(c.code, 78, 136, 24);
     font(3);
-    G.setFontAlign(-1, 0);
-    G.drawString(num(c.temp), 118, 144);
+    g.setFontAlign(-1, 0);
+    g.drawString(num(c.temp), 118, 144);
     degree(200, 124);
 
     font(0);
@@ -287,7 +300,7 @@
       const d = days[i] || {};
       const x = 40 + i * cw;
       const cx = x + cw / 2;
-      if (i > 0) G.drawLine(x, 126, x, 216);
+      if (i > 0) g.drawLine(x, 126, x, 216);
       hilite(x + 4, 122, x + cw - 4, 216, i === st.f);
       font(1);
       text(d.d || ("D" + (i + 1)), cx, 134, 0, -1);
@@ -311,13 +324,13 @@
     const need = loc.aurora && loc.aurora.needed !== undefined ? loc.aurora.needed : 99;
     font(0);
     text("KP", x0 - 18, y0 - 8, -1, -1);
-    G.drawLine(x0, y0, x0, y1);
-    G.drawLine(x0, y1, x1, y1);
+    g.drawLine(x0, y0, x0, y1);
+    g.drawLine(x0, y1, x1, y1);
     text("0", x0 - 4, base, 1, 0);
     for (let v = 3; v <= 9; v += 3) {
       const y = base - v / 9 * span;
       text("" + v, x0 - 4, y, 1, 0);
-      G.drawLine(x0 - 2, y, x0 + 2, y);
+      g.drawLine(x0 - 2, y, x0 + 2, y);
     }
     const bw = (x1 - x0) / k.length;
     for (let i = 0; i < k.length; i++) {
@@ -325,21 +338,21 @@
       const y = base - v / 9 * span;
       const bx0 = x0 + i * bw + 1;
       const bx1 = x0 + (i + 1) * bw - 1;
-      if (k[i] >= need || i === st.k) G.fillRect(bx0, y, bx1, base - 1);
-      else G.drawRect(bx0, y, bx1, base - 1);
+      if (k[i] >= need || i === st.k) g.fillRect(bx0, y, bx1, base - 1);
+      else g.drawRect(bx0, y, bx1, base - 1);
       if (i === st.k) {
-        G.drawRect(bx0 - 3, y0 - 2, bx1 + 3, base + 2);
-        G.drawRect(bx0 - 2, y0 - 1, bx1 + 2, base + 1);
+        g.drawRect(bx0 - 3, y0 - 2, bx1 + 3, base + 2);
+        g.drawRect(bx0 - 2, y0 - 1, bx1 + 2, base + 1);
       }
     }
     if (need <= 9) {
       const ty = base - need / 9 * span;
-      for (let dx = x0; dx < x1; dx += 8) G.drawLine(dx, ty, dx + 4, ty);
+      for (let dx = x0; dx < x1; dx += 8) g.drawLine(dx, ty, dx + 4, ty);
     }
     for (let i = 0; sp.kpf_ticks && i < sp.kpf_ticks.length; i++) {
       const tk = sp.kpf_ticks[i];
       const tx = x0 + tk.i * bw;
-      G.drawLine(tx, base, tx, base + 3);
+      g.drawLine(tx, base, tx, base + 3);
       text(cut(tk.d || "", 5), tx, base + 5, 0, -1);
     }
   }
@@ -369,7 +382,11 @@
   }
 
   function draw() {
-    G.reset().clear();
+    g.reset().clear();
+    // reset() applies the UI theme on current firmware, but set the phosphor
+    // foreground explicitly so a build that resets to plain white still
+    // renders in the device color.
+    if (g.theme && g.theme.fg !== undefined) g.setColor(g.theme.fg);
     header();
     if (st.e || !st.d) {
       msg(st.e || "NO DATA", "RUN COMPANION SYNC");
@@ -409,20 +426,25 @@
     sfx("TAB", dir, 2);
     draw();
   }
+  function teardown() {
+    Pip.removeListener("knob1", knob1);
+    Pip.removeListener("knob2", knob2);
+    if (Pip.audioStop) Pip.audioStop();
+    delete Pip.remove;
+    delete Pip.removeSubmenu;
+  }
 
+  // The firmware invokes these hooks (whichever exists) when the mode dial
+  // is turned away; registering both matches the official apps.
+  Pip.remove = teardown;
+  Pip.removeSubmenu = teardown;
+  // Ensure exclusivity on the knobs (official inputs-doc pattern) so a
+  // previous app's leaked handler can't fight ours. Torch is left alone to
+  // keep the stock flashlight toggle.
+  Pip.removeAllListeners("knob1");
+  Pip.removeAllListeners("knob2");
   Pip.on("knob1", knob1);
   Pip.on("knob2", knob2);
   load();
   draw();
-
-  return {
-    id: "WEATHER",
-    notDefault: true,
-    fullscreen: true,
-    remove: function() {
-      Pip.removeListener("knob1", knob1);
-      Pip.removeListener("knob2", knob2);
-      Pip.audioStop();
-    }
-  };
-})
+})();

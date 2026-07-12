@@ -26,6 +26,26 @@ Fix:
 2. Reboot the Pip-Boy.
 3. If it still does not appear, restore from backup and copy the files again.
 
+## App Hangs on the Launch/Loading Screen (No Error, Reboot Needed)
+
+Selecting Weather under INV > APPS does nothing, or the unit sits on the app
+launch screen with dead controls until you reboot.
+
+This is the signature of a `USER/WEATHER.js` built before v1.0.1. Those builds
+used the Pip-Boy 3000's app shape (a function the firmware was expected to
+invoke); the Mk V firmware runs app files as plain scripts, so the old file
+evaluated to nothing, drew nothing, and registered no controls. The v1.0.1
+build runs top to bottom like the official Wand Company apps.
+
+Fix:
+
+1. Reinstall the app files from this repository (companion `INSTALL SD + DATA`
+   / `USB INSTALL + DATA`, or copy `pipboy/WEATHER.min.js` to
+   `USER/WEATHER.js` manually).
+2. Reboot the Pip-Boy.
+3. Open INV > APPS > Weather; exit by turning the mode dial to any other
+   position.
+
 ## App Opens but Shows NO WEATHER DATA
 
 The app files are installed, but no cache file was found.

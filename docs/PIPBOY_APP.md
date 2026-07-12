@@ -5,15 +5,32 @@ The on-device app source lives at `pipboy/WEATHER.js` (shipped as the minified
 Espruino app that loads cached JSON from the SD card and renders three weather
 views on the Pip-Boy 3000 Mk V screen.
 
+## App Structure
+
+The Mk V firmware runs `USER/*.js` files as plain scripts, top to bottom, the
+same way the official Wand Company apps run. `WEATHER.js` therefore:
+
+- starts with the official submenu-takeover preamble (guarded calls to any
+  previous `Pip.removeSubmenu` / `Pip.remove`),
+- runs inside one invoked closure that draws directly to the `g` graphics
+  instance using the device theme color (`g.theme.fg`), and
+- registers its teardown (listener removal, audio stop) on `Pip.remove` and
+  `Pip.removeSubmenu`, which the firmware calls when the mode dial is turned
+  away from the app.
+
+There is no returned `{id, remove}` object — that is the Pip-Boy 3000's app
+contract, and nothing on the Mk V invokes it.
+
 ## App Metadata
 
 The registry metadata file is:
 
 ```text
-pipboy/package.json
+pipboy/metadata.json
 ```
 
-It registers:
+It follows the pip-boy.com registry schema
+(`CodyTolene/pip-boy-3000-mk-v-apps`) and registers:
 
 - App id: `weather`
 - Menu name: `Weather`
@@ -50,10 +67,11 @@ there to make manual testing easier.
 | Top thumbwheel (knob 2) rotate | Change view. |
 | Mode selector dial | Exit the app (turn to any other mode). |
 
-The app registers `notDefault: true`, so turning the Mk V's STATS/INV/DATA/
-MAP/RADIO dial away from the app exits it and the OS restores the normal
-screen. There are no mode buttons on the Mk V, and the top thumbwheel has no
-press action.
+Turning the Mk V's STATS/INV/DATA/MAP/RADIO dial away from the app exits it:
+the firmware calls the app's registered `Pip.remove`/`Pip.removeSubmenu`
+teardown and loads the new mode's screen. There are no mode buttons on the
+Mk V, the top thumbwheel has no press action, and the torch button keeps its
+stock flashlight behavior.
 
 ## Views
 
@@ -128,8 +146,8 @@ Change the `12` in `stale()` in `WEATHER.js` if you want a different threshold.
 The app targets the Pip-Boy 3000 Mk V's fixed landscape drawing surface: 480
 by 320 pixels. The case shroud hides the sides of the panel, so only
 `x in [38, 438]` (a 400 by 320 window) is visible; every layout coordinate is
-hardcoded inside that window. The native firmware exposes the same window as
-the global `BGRECT`.
+hardcoded inside that window. (The official `asteroid` app treats the same
+region as visible — it blits a 400-wide buffer at x = 40.)
 
 The header and footer rows are additionally inset horizontally by `CORN`
 (56 px) so their text clears the corners of the case opening. If your unit's
@@ -150,7 +168,7 @@ You can regenerate it at a different base grid size or scale:
 python companion/make_icon.py 64 64 3
 ```
 
-Keep `pipboy/package.json` pointed at `assets/icon.png`. (The Mk V has no
+Keep `pipboy/metadata.json` pointed at `assets/icon.png`. (The Mk V has no
 holotape `.IMG` menu icons; the old 1-bpp `APPINFO/WEATHER.IMG` was a
 Pip-Boy 3000 convention and is gone.)
 

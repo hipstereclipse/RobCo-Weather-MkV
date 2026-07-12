@@ -2,7 +2,7 @@
 # ============================================================================
 #  ICON GENERATOR  (Pip-Boy 3000 Mk V weather app)
 #  Renders the same Fallout-style holotape design the 3000 build used, but
-#  writes it as the PNG registry icon referenced by pipboy/package.json
+#  writes it as the PNG registry icon referenced by pipboy/metadata.json
 #  ("icon": "assets/icon.png"). The Mk V app list has no holotape .IMG icons,
 #  so the 1-bpp Espruino image output was retired with the Mk V port.
 #

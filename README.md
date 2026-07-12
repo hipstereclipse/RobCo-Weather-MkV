@@ -99,7 +99,7 @@ action bar, and terminal log:
 |-- pipboy/
 |   |-- WEATHER.js               # on-device Espruino app (source)
 |   |-- WEATHER.min.js           # minified build -> USER/WEATHER.js on card
-|   |-- package.json             # app registry metadata
+|   |-- metadata.json            # app registry metadata (pip-boy.com schema)
 |   |-- ChangeLog                # app version history
 |   |-- APPINFO/weather.json     # optional on-card friendly name
 |   `-- assets/icon.png          # PNG registry icon
