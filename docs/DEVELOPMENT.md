@@ -10,10 +10,13 @@ the UI.
 companion/pipboy_weather.py      Fetch engine, CLI, config, JSON writer.
 companion/pipboy_weather_gui.py  Tkinter UI over the fetch engine.
 companion/render_preview.py      Pillow renderer for preview PNGs.
-companion/make_icon.py           Espruino 1-bpp icon generator.
-pipboy/APPS/WEATHER.JS           On-device app.
-pipboy/APPINFO/WEATHER.info      App metadata.
-pipboy/APPINFO/WEATHER.IMG       Generated holotape icon.
+companion/make_icon.py           PNG registry-icon generator.
+pipboy/WEATHER.js                On-device app (readable source).
+pipboy/WEATHER.min.js            Minified build installed as USER/WEATHER.js.
+pipboy/package.json              Registry metadata (id, icon, storage map).
+pipboy/APPINFO/weather.json      Optional on-card friendly name.
+pipboy/assets/icon.png           Generated registry icon.
+pipboy/ChangeLog                 App version history.
 sample/WEATHER.JSON              Sample payload for previews and simulator use.
 previews/*.png                   Generated screenshots.
 docs/*.md                        Project documentation.
@@ -77,22 +80,18 @@ python companion/make_icon.py
 The default output is:
 
 ```text
-pipboy/APPINFO/WEATHER.IMG
+pipboy/assets/icon.png
 ```
 
-To generate a different size:
+To generate a different base grid size or scale factor:
 
 ```bash
-python companion/make_icon.py 64 64
+python companion/make_icon.py 64 64 3
 ```
 
-The icon format is:
-
-- Byte 0: width.
-- Byte 1: height.
-- Byte 2: bits per pixel, currently `1`.
-- Remaining bytes: packed pixels, most-significant bit first, continuous
-  across rows.
+The generator rasterizes the same 1-bpp holotape pixel art the Pip-Boy 3000
+build used, then saves it as a phosphor-green-on-black PNG (default 48x48 grid
+scaled 4x to 192x192). It requires Pillow.
 
 ## Data Source Endpoints
 
@@ -111,8 +110,9 @@ space-weather endpoint should not prevent normal weather output.
 
 ## Editing the Pip-Boy App
 
-The app is written as a self-contained function expression because that is the
-shape expected by the Pip-Boy app loader. Preserve the returned object with:
+The app is written as a self-contained, non-invoked function expression
+because that is the shape the Mk V app loader expects (the same "Form A"
+contract the Pip-Boy 3000 used). Preserve the returned object with:
 
 ```javascript
 {
@@ -128,9 +128,23 @@ Compatibility practices:
 - Keep `DATA_PATHS` backwards-compatible unless there is a strong reason to
   remove a fallback.
 - Keep `STALE_HOURS` near the top for easy user tuning.
-- Keep font and graphics-object fallbacks near the top.
+- Keep font and graphics-object fallbacks near the top (the `G` resolver picks
+  `h` under the loader and falls back to the `bC`/`g` firmware buffers).
+- Keep every draw inside the Mk V visible window, `x in [38, 438]`.
+- Feature-detect non-core `Pip.*` calls (e.g. `Pip.playSound`) and degrade
+  gracefully when a firmware lacks them.
 - Avoid assuming a specific timezone on-device. Use `epoch` for cache age.
 - Keep screen text short. The display is small, and firmware fonts vary.
+
+After editing `pipboy/WEATHER.js`, rebuild the shipping artifact:
+
+```bash
+terser pipboy/WEATHER.js -c negate_iife=false,side_effects=false -o pipboy/WEATHER.min.js
+espruino pipboy/WEATHER.min.js --config PRETOKENISE=2 --config SET_TIME_ON_WRITE=false -o pipboy/WEATHER.min.js
+```
+
+The minified file must stay functionally identical to the source and keep the
+non-invoked `(function() { ... })` shape - no trailing `()`.
 
 ## Editing the Companion
 
@@ -153,7 +167,8 @@ Before pushing a release-ready update:
 - Run Python syntax checks.
 - Validate `sample/WEATHER.JSON`.
 - Regenerate preview PNGs when UI or sample data changes.
-- Regenerate `WEATHER.IMG` if the icon generator changed.
+- Regenerate `assets/icon.png` if the icon generator changed.
+- Rebuild `pipboy/WEATHER.min.js` if the device app changed.
 - Test `pipboy_weather.py --fetch` with an SD path or local output.
 - Open the GUI at least once if GUI code changed.
 - Check documentation links from `README.md`.

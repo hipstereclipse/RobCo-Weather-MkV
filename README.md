@@ -1,9 +1,9 @@
-# RobCo Weather
+# RobCo Weather MkV
 
-RobCo Weather is a cached weather and space-weather terminal for The Wand
-Company Pip-Boy 3000. It pairs a Python companion app with an on-device
-Espruino app so the Pip-Boy can show useful weather data without needing live
-network access.
+RobCo Weather MkV is a cached weather and space-weather terminal for the
+Bethesda x The Wand Company Pip-Boy 3000 Mk V. It pairs a Python companion app
+with an on-device Espruino app so the Pip-Boy can show useful weather data
+without needing live network access.
 
 The companion runs on a computer or phone, fetches data from Open-Meteo and
 NOAA SWPC, writes `WEATHER.JSON` to the Pip-Boy SD card, and the Pip-Boy app
@@ -18,7 +18,7 @@ renders the cached data in a Fallout 3 / New Vegas style interface.
 - Per-location aurora estimate based on latitude and forecast Kp.
 - Stale-cache warning when the synced data is more than 12 hours old.
 - Graphical companion app and interactive/scriptable CLI.
-- Preview renderer for screenshots and a generator for the app holotape icon.
+- Preview renderer for screenshots and a generator for the app's PNG icon.
 
 ## Quick Start
 
@@ -33,16 +33,15 @@ renders the cached data in a Fallout 3 / New Vegas style interface.
 3. Press `INSTALL SD + DATA`, then select the SD card root. This copies:
 
    ```text
-   pipboy/APPS/WEATHER.JS          -> APPS/WEATHER.JS
-   pipboy/APPINFO/WEATHER.info     -> APPINFO/WEATHER.info
-   pipboy/APPINFO/WEATHER.IMG      -> APPINFO/WEATHER.IMG
+   pipboy/WEATHER.min.js           -> USER/WEATHER.js
+   pipboy/APPINFO/weather.json     -> APPINFO/weather.json
    ```
 
    It also downloads Open-Meteo weather and NOAA SWPC space weather, then
    writes `USER/WEATHER.JSON`. If you prefer serial transfer, use
    `USB INSTALL + DATA` to send the app files and fresh cache over USB.
 
-4. Reboot the Pip-Boy. The app appears in `ITEMS > MISC` as `Weather`.
+4. Reboot the Pip-Boy. The app appears in `INV > APPS` as `Weather`.
 
 The companion writes the cache to `<SD>/USER/WEATHER.JSON`. If no SD path is
 set, it writes `companion/WEATHER.JSON` so you can copy it manually.
@@ -93,22 +92,26 @@ action bar, and terminal log:
 |-- companion/
 |   |-- pipboy_weather_gui.py    # Tkinter companion UI
 |   |-- pipboy_weather.py        # fetch/write engine and CLI
-|   |-- make_icon.py             # regenerates APPINFO/WEATHER.IMG
+|   |-- pipboy_serial.py         # USB serial file transfer helper
+|   |-- make_icon.py             # regenerates pipboy/assets/icon.png
 |   `-- render_preview.py        # renders preview PNGs, requires Pillow
 |-- docs/                        # detailed documentation
 |-- pipboy/
-|   |-- APPS/WEATHER.JS          # on-device Espruino app
-|   `-- APPINFO/
-|       |-- WEATHER.info         # Pip-Boy app metadata
-|       `-- WEATHER.IMG          # 1-bpp holotape icon
+|   |-- WEATHER.js               # on-device Espruino app (source)
+|   |-- WEATHER.min.js           # minified build -> USER/WEATHER.js on card
+|   |-- package.json             # app registry metadata
+|   |-- ChangeLog                # app version history
+|   |-- APPINFO/weather.json     # optional on-card friendly name
+|   `-- assets/icon.png          # PNG registry icon
 |-- previews/                    # generated screenshots
-`-- sample/WEATHER.JSON          # simulator and preview sample cache
+|-- sample/WEATHER.JSON          # simulator and preview sample cache
+`-- AGENTS.md                    # Mk V app conventions for automated tooling
 ```
 
 ## Requirements
 
-- Pip-Boy 3000 SD card access through USB-C file manager or direct microSD
-  access.
+- Pip-Boy 3000 Mk V SD card access through USB-C serial transfer or direct
+  microSD access.
 - Python 3 for the companion.
 - Tkinter for the GUI. Most desktop Python installs include it.
 - Internet access only on the companion device during sync.
@@ -121,7 +124,7 @@ No API keys are required. Weather comes from
 ## Safety Notes
 
 Back up the Pip-Boy SD card before installing or replacing files. The project
-only needs three app files plus `USER/WEATHER.JSON`, but a full backup makes it
+only needs two app files plus `USER/WEATHER.JSON`, but a full backup makes it
 easy to restore the original card state if firmware expectations differ.
 
 The Pip-Boy app reads cached data only. Re-run the companion whenever you want

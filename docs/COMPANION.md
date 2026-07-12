@@ -140,9 +140,8 @@ In the GUI, press `INSTALL SD + DATA` and select the Pip-Boy SD card root. The
 installer copies the packaged Pip-Boy app files to:
 
 ```text
-<sd_path>/APPS/WEATHER.JS
-<sd_path>/APPINFO/WEATHER.info
-<sd_path>/APPINFO/WEATHER.IMG
+<sd_path>/USER/WEATHER.js          (from pipboy/WEATHER.min.js)
+<sd_path>/APPINFO/weather.json
 ```
 
 It then fetches Open-Meteo weather plus NOAA SWPC space weather and writes:

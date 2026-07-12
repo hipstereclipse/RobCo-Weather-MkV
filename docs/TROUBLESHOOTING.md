@@ -3,12 +3,11 @@
 Use this guide when the app does not appear, data does not load, syncing fails,
 or the display looks wrong.
 
-## App Does Not Appear in ITEMS > MISC
+## App Does Not Appear in INV > APPS
 
 Likely causes:
 
-- `APPINFO/WEATHER.info` is missing or in the wrong folder.
-- `APPS/WEATHER.JS` is missing or in the wrong folder.
+- `USER/WEATHER.js` is missing or in the wrong folder.
 - The Pip-Boy has not been rebooted since copying the files.
 - The SD card was not safely ejected and the file copy did not finish.
 
@@ -17,10 +16,12 @@ Fix:
 1. Confirm the SD card contains:
 
    ```text
-   APPS/WEATHER.JS
-   APPINFO/WEATHER.info
-   APPINFO/WEATHER.IMG
+   USER/WEATHER.js
+   APPINFO/weather.json
    ```
+
+   (`APPINFO/weather.json` only supplies the friendly name; the app itself is
+   `USER/WEATHER.js`.)
 
 2. Reboot the Pip-Boy.
 3. If it still does not appear, restore from backup and copy the files again.
@@ -65,8 +66,8 @@ The device ran out of Espruino runtime memory while loading or drawing the app.
 
 Fix:
 
-1. Install the current `APPS/WEATHER.JS`; it is sized to avoid the heavier
-   renderer path that triggered this error.
+1. Install the current build of `USER/WEATHER.js`; it is sized to avoid the
+   heavier renderer path that triggered this error.
 2. Re-run the companion and sync again.
 3. If the app shows `DATA TOO LARGE`, remove saved locations and sync again.
    The companion prints the generated cache size after each sync and warns near
@@ -153,33 +154,37 @@ The companion itself does not require Pillow.
 
 ## Text Looks Wrong on the Pip-Boy
 
-Firmware builds can expose different font names for `h.setFont()`.
+Firmware builds can expose different font names for `G.setFont()`.
 
 Fix:
 
-1. Open `pipboy/APPS/WEATHER.JS`.
+1. Open `pipboy/WEATHER.js`.
 2. Check the `font(n)` helper near the top:
 
    ```javascript
    function font(n) {
-     if (n === 3) { h.setFont("Monofonto23", 2); return; }
-     if (n === 2) { h.setFont("Monofonto23"); return; }
-     h.setFont("6x8", n === 1 ? 2 : 1);
+     if (n === 3) { G.setFont("Monofonto23", 2); return; }
+     if (n === 2) { G.setFont("Monofonto23"); return; }
+     G.setFont("6x8", n === 1 ? 2 : 1);
    }
    ```
 
-3. Adjust the font names/sizes passed to `h.setFont()` for your firmware.
+3. Adjust the font names/sizes passed to `G.setFont()` for your firmware,
+   then rebuild `WEATHER.min.js` and reinstall.
 
 ## App Layout Is Cropped
 
-The layout is hardcoded for the Pip-Boy 3000's fixed 480 by 320 landscape
-display.
+The layout is hardcoded for the Pip-Boy 3000 Mk V's 480 by 320 landscape
+surface, with all content inside the visible window `x in [38, 438]` (the
+case shroud hides the rest).
 
 Fix:
 
-- Confirm the app is running in landscape mode.
 - Shorten location names and region labels.
-- Adjust the layout constants in `WEATHER.JS` if your unit's display differs.
+- If your unit's opening clips the header/footer corners, increase `CORN`
+  near the top of `WEATHER.js`.
+- Adjust the layout constants in `WEATHER.js` if your unit's display differs,
+  then rebuild `WEATHER.min.js`.
 
 ## Aurora Looks Too Optimistic or Too Conservative
 

@@ -4,7 +4,7 @@
 #  Renders PNG mock-ups of how the Pip-Boy Weather app looks on-device, plus
 #  the companion GUI, so you can see it before installing anything.
 #
-#  It re-implements the WEATHER.JS layout against the same WEATHER.JSON, in
+#  It re-implements the WEATHER.js layout against the same WEATHER.JSON, in
 #  the Pip-Boy green-phosphor aesthetic (scanlines + bezel). It is a visual
 #  approximation - exact fonts/metrics on real hardware will differ.
 #
@@ -25,16 +25,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "..", "previews")
 DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "sample", "WEATHER.JSON")
 
-# logical screen - the Pip-Boy 3000 app runs LANDSCAPE (~480x320 usable)
+# logical screen - the Pip-Boy 3000 Mk V draws LANDSCAPE 480x320, but the case
+# shroud hides x < 38 and x > 438 of the surface; the preview masks those bands
+# so anything drawn under the shroud is obviously clipped
 LW, LH = 480, 320
+VIS_X0, VIS_X1 = 38, 438  # visible window (mirrors WEATHER.js - keep in sync)
 S = 2  # supersample factor
-CORN = 56      # horizontal inset for the top/bottom rows so the rounded
-               # display corners do not clip the header/footer text
-               # (mirrors CORN in WEATHER.JS - keep the two in sync)
+CORN = 56      # horizontal inset for the top/bottom rows so the case opening
+               # does not clip the header/footer text
+               # (mirrors CORN in WEATHER.js - keep the two in sync)
 TOP = 10
 FOOT = 26
-R_SCREEN = 40  # screen corner radius in logical px (the rounded glass); models
-               # an aggressively rounded unit so the preview reveals corner clipping
+R_SCREEN = 8   # corner radius of the case opening in logical px
 
 BG    = (1, 16, 7)
 FG    = (26, 255, 128)
@@ -187,7 +189,7 @@ def draw_icon(g, code, cx, cy, r, is_day=True):
 
 # --------------------------------------------------------------- app chrome
 def hr(g, y):
-    g.line(12, y, LW - 12, y)
+    g.line(40, y, 436, y)
 
 
 def pad_hex(n):
@@ -269,9 +271,9 @@ TABS = ["ATMOS", "5-DAY", "SOLAR"]
 
 def tabs(g, active):
     y = 66
-    bw = (LW - 24) / len(TABS)
+    bw = (LW - 84) / len(TABS)
     for i, t in enumerate(TABS):
-        x0 = 12 + i * bw
+        x0 = 40 + i * bw
         col = HOT if i == active else DIM
         if i == active:
             g.rect(x0 + 3, y, x0 + bw - 3, y + 15, fill=HOT)
@@ -332,34 +334,34 @@ def view_current(g, data, loc, item_i=0):
     c = loc.get("current", {})
     unit = data.get("units", {}).get("temp", "F")
     d0 = (loc.get("daily") or [{}])[0]
-    box(g, 14, 96, 236, 246, "LOCAL ATMOS")
-    box(g, 248, 96, LW - 14, 246, "INSTRUMENTS")
+    box(g, 40, 96, 232, 246, "LOCAL ATMOS")
+    box(g, 240, 96, 436, 246, "INSTRUMENTS")
 
-    draw_icon(g, c.get("code", 0), 70, 136, 24, c.get("is_day", 1))
+    draw_icon(g, c.get("code", 0), 78, 136, 24, c.get("is_day", 1))
     temp = str(round(c.get("temp", 0)))
     g.text(temp, 118, 144, F_BIG, ax=-1, ay=0, bold=True)
-    g.circle(205 + 5, 124 + 4, 4)
-    g.text(unit, 205 + 14, 124 + 6, F_TINY, ax=-1, ay=0)
+    g.circle(200 + 5, 124 + 4, 4)
+    g.text(unit, 200 + 14, 124 + 6, F_TINY, ax=-1, ay=0)
 
-    g.text("> CONDITION", 24, 181, F_TINY, fill=DIM)
+    g.text("> CONDITION", 50, 181, F_TINY, fill=DIM)
     if c.get("time"):
-        g.text("OBS " + c["time"][5:16], 226, 181, F_TINY, ax=1, fill=DIM)
-    g.text(c.get("desc", "--").upper()[:18], 24, 199, F_SMALL)
-    metric(g, "HI", str(round(d0.get("hi", 0))), 52, 216)
-    metric(g, "LO", str(round(d0.get("lo", 0))), 114, 216)
-    metric(g, "RAIN", "%s%%" % round(d0.get("pop", 0)), 186, 216)
+        g.text("OBS " + c["time"][5:16], 222, 181, F_TINY, ax=1, fill=DIM)
+    g.text(c.get("desc", "--").upper()[:15], 50, 199, F_SMALL)
+    metric(g, "HI", str(round(d0.get("hi", 0))), 72, 216)
+    metric(g, "LO", str(round(d0.get("lo", 0))), 126, 216)
+    metric(g, "RAIN", "%s%%" % round(d0.get("pop", 0)), 188, 216)
 
-    xL, xR = 262, LW - 26
+    xL, xR = 252, 424
     rows = [(104, 127), (134, 157), (164, 193), (202, 233)]
     for i, (y0, y1) in enumerate(rows):
         if i == item_i:
-            g.rect(254, y0, LW - 20, y1, fill=HOT)
+            g.rect(246, y0, 430, y1, fill=HOT)
     stat_row(g, "FEELS", str(round(c.get("feels", 0))) + unit, xL, xR, 116)
     stat_row(g, "WIND", str(round(c.get("wind", 0))) + " " + c.get("dir", ""), xL, xR, 146)
     stat_row(g, "HUMID", str(round(c.get("humidity", 0))) + "%", xL, xR, 176)
-    gauge(g, xL, 188, LW - 288, c.get("humidity"), 100)
+    gauge(g, xL, 188, 172, c.get("humidity"), 100)
     stat_row(g, "RAD UV", str(round(c.get("uv", 0))), xL, xR, 214)
-    gauge(g, xL, 226, LW - 288, c.get("uv"), 11)
+    gauge(g, xL, 226, 172, c.get("uv"), 11)
 
     if item_i == 0:
         detail = "FEELS %s%s  ACTUAL %s%s" % (round(c.get("feels", 0)), unit, round(c.get("temp", 0)), unit)
@@ -369,8 +371,8 @@ def view_current(g, data, loc, item_i=0):
         detail = "HUMID %s%%  RAIN %s%%" % (round(c.get("humidity", 0)), round(d0.get("pop", 0)))
     else:
         detail = "UV %s  %s" % (round(c.get("uv", 0)), solar_line(data, loc) or "SOLAR QUIET")
-    box(g, 14, 250, LW - 14, 282, "SELECTED TELEMETRY")
-    g.text(detail[:36], 24, 266, F_SMALL, ay=0,
+    box(g, 40, 250, 436, 282, "SELECTED TELEMETRY")
+    g.text(detail[:31], 50, 266, F_SMALL, ay=0,
            fill=HOT if item_i == 3 and solar_active(data.get("space")) else FG)
 
 
@@ -378,27 +380,27 @@ def view_forecast(g, data, loc, item_i=0):
     days = loc.get("daily", [])[:5]
     if days:
         item_i = min(item_i, len(days) - 1)
-    box(g, 14, 96, LW - 14, 222, "FORECAST BUFFER")
-    g.text("5 ENTRIES  //  SELECT DAY WITH WHEEL", 26, 111, F_TINY, fill=DIM)
-    colW = (LW - 24) / 5
+    box(g, 40, 96, 436, 222, "FORECAST BUFFER")
+    g.text("5 ENTRIES  //  SELECT DAY WITH WHEEL", 52, 111, F_TINY, fill=DIM)
+    colW = (LW - 84) / 5
     for i, dday in enumerate(days):
-        cx = 12 + colW * i + colW / 2
+        cx = 40 + colW * i + colW / 2
         if i > 0:
-            g.line(12 + colW * i, 126, 12 + colW * i, 216, fill=DIM)
+            g.line(40 + colW * i, 126, 40 + colW * i, 216, fill=DIM)
         if i == item_i:
-            g.rect(12 + colW * i + 4, 122, 12 + colW * (i + 1) - 4, 216, fill=HOT)
+            g.rect(40 + colW * i + 4, 122, 40 + colW * (i + 1) - 4, 216, fill=HOT)
         g.text(dday.get("d", "?"), cx, 134, F_SMALL, ax=0)
         draw_icon(g, dday.get("code", 0), cx, 169, 10, True)
         g.text(dday.get("desc", "--").upper()[:9], cx, 192, F_TINY, ax=0, fill=DIM)
         g.text("%s/%s %s%%" % (round(dday.get("hi", 0)), round(dday.get("lo", 0)),
                round(dday.get("pop", 0))), cx, 207, F_TINY, ax=0)
     dday = days[item_i] if days else {}
-    box(g, 14, 232, LW - 14, 282, "ENTRY DETAIL")
-    g.text("%s  %s" % (dday.get("date", dday.get("d", "D%d" % (item_i + 1))),
-           dday.get("desc", "--").upper()[:20]), 24, 249, F_SMALL)
+    box(g, 40, 232, 436, 282, "ENTRY DETAIL")
+    g.text(("%s  %s" % (dday.get("date", dday.get("d", "D%d" % (item_i + 1))),
+           dday.get("desc", "--").upper()))[:31], 50, 249, F_SMALL)
     g.text("HI/LO %s/%s" % (round(dday.get("hi", 0)), round(dday.get("lo", 0))),
-           24, 272, F_SMALL, ax=-1, ay=0)
-    g.text("RAIN %s%%" % round(dday.get("pop", 0)), LW - 24, 272, F_SMALL, ax=1, ay=0)
+           50, 272, F_SMALL, ax=-1, ay=0)
+    g.text("RAIN %s%%" % round(dday.get("pop", 0)), 426, 272, F_SMALL, ax=1, ay=0)
 
 
 def kp_graph(g, sp, loc, x0, y0, x1, y1, item_i=0):
@@ -443,34 +445,34 @@ def kp_graph(g, sp, loc, x0, y0, x1, y1, item_i=0):
 def view_space(g, data, loc, item_i=0):
     sp = data.get("space")
     if not sp:
-        g.text("NO SPACE WX DATA", LW / 2, LH / 2, F_SMALL, ax=0, ay=0)
+        g.text("NO SPACE WX DATA", 238, LH / 2, F_SMALL, ax=0, ay=0)
         return
     kpf = sp.get("kpf") or []
     if kpf:
         item_i = min(item_i, len(kpf) - 1)
-    box(g, 14, 96, 238, 232, "ROBCO SOLAR RELAY")
-    box(g, 250, 96, LW - 14, 232, "KP BUFFER")
-    stat_row(g, "FLARE", sp.get("flare", "NONE"), 26, 226, 118)
+    box(g, 40, 96, 232, 232, "ROBCO SOLAR RELAY")
+    box(g, 240, 96, 436, 232, "KP BUFFER")
+    stat_row(g, "FLARE", sp.get("flare", "NONE"), 52, 220, 118)
     stat_row(g, "R/S/G", "%s %s %s" % (sp.get("r_scale", "R0"),
-             sp.get("s_scale", "S0"), sp.get("g_scale", "G0")), 26, 226, 152)
+             sp.get("s_scale", "S0"), sp.get("g_scale", "G0")), 52, 220, 152)
     stat_row(g, "KP NOW/PK", "%s / %s" % (sp.get("kp_now", "--"),
-             sp.get("kp_peak", "--")), 26, 226, 186)
-    g.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 26, 216, F_TINY, fill=DIM)
-    g.text("KP FORECAST UTC", 262, 114, F_TINY, fill=DIM)
-    kp_graph(g, sp, loc, 286, 132, LW - 26, 210, item_i)
+             sp.get("kp_peak", "--")), 52, 220, 186)
+    g.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 52, 216, F_TINY, fill=DIM)
+    g.text("KP FORECAST UTC", 252, 114, F_TINY, fill=DIM)
+    kp_graph(g, sp, loc, 274, 132, 424, 210, item_i)
 
-    box(g, 14, 242, LW - 14, 282, "AURORA ESTIMATE")
+    box(g, 40, 242, 436, 282, "AURORA ESTIMATE")
     au = loc.get("aurora", {})
-    g.text("AURORA @ " + loc.get("name", "").upper()[:18], 24, 258, F_TINY,
+    g.text("AURORA @ " + loc.get("name", "").upper()[:18], 50, 258, F_TINY,
            ax=-1, ay=0)
     chance = au.get("chance", "UNKNOWN")
-    g.text(chance, LW - 24, 258, F_HEAD, ax=1, ay=0, bold=True,
+    g.text(chance, 426, 258, F_HEAD, ax=1, ay=0, bold=True,
            fill=HOT if chance in ("LIKELY", "POSSIBLE") else FG)
     kv = kpf[item_i] if kpf else "--"
-    g.text(("%s  KP %s" % (kp_label(sp, item_i), kv))[:24],
-           24, 276, F_SMALL, fill=FG, ay=0)
+    g.text(("%s  KP %s" % (kp_label(sp, item_i), kv))[:15],
+           50, 276, F_SMALL, fill=FG, ay=0)
     g.text("NEED %s PK %s" % (au.get("needed", "?"), au.get("maxkp", "?")),
-           LW - 24, 276, F_SMALL, fill=FG, ax=1, ay=0)
+           426, 276, F_SMALL, fill=FG, ax=1, ay=0)
 
 
 # --------------------------------------------------------------- compositing
@@ -509,15 +511,16 @@ def bezel(screen_img, caption):
     d = ImageDraw.Draw(out)
     d.rounded_rectangle([6, 6, W - 6, H - 6], radius=18 * S, outline=DIM, width=2 * S)
     d.text((m, 18 * S), caption, font=font(F_HEAD * S, True), fill=FG)
-    d.text((W - m, 24 * S), "PIP-BOY 3000", font=font(F_TINY * S, False),
+    d.text((W - m, 24 * S), "PIP-BOY 3000 MK V", font=font(F_TINY * S, False),
            fill=DIM, anchor="ra")
-    # inner screen recess
-    d.rectangle([m - 4 * S, top - 4 * S, W - m + 4 * S, H - m + 4 * S], outline=DIM, width=S)
-    # round the screen corners so the preview matches the real rounded glass;
-    # corner pixels fall back to the bezel so clipped text is obvious
+    # inner screen recess around the visible window only
+    d.rectangle([m + (VIS_X0 - 4) * S, top - 4 * S,
+                 m + (VIS_X1 + 4) * S, H - m + 4 * S], outline=DIM, width=S)
+    # mask everything outside the Mk V case opening (x in [VIS_X0, VIS_X1]);
+    # hidden pixels fall back to the bezel so clipped content is obvious
     mask = Image.new("L", screen_img.size, 0)
     ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, screen_img.size[0] - 1, screen_img.size[1] - 1],
+        [VIS_X0 * S, 0, VIS_X1 * S - 1, screen_img.size[1] - 1],
         radius=R_SCREEN * S, fill=255)
     out.paste(screen_img, (m, top), mask)
     return out
@@ -613,9 +616,9 @@ def render_gui():
     t("APP SOURCE", 24, 428, 9, fill=DIMc)
     t("( ) LATEST (GIT)   (X) LOCAL FOLDER", 118, 426, 10)
     d.rectangle([428 * s, 422 * s, 800 * s, 446 * s], outline=EDGE, width=s)
-    t("C:\\Users\\Eclipse\\.claude\\Workspaces\\Weather", 436, 427, 9)
+    t("C:\\Users\\Eclipse\\.claude\\Workspaces\\Weather MkV", 436, 427, 9)
     button(814, 422, 934, 446, "BROWSE...")
-    t("APP FILES  <-  C:\\Users\\Eclipse\\.claude\\Workspaces\\Weather  (bundled)",
+    t("APP FILES  <-  C:\\Users\\Eclipse\\.claude\\Workspaces\\Weather MkV  (bundled)",
       24, 462, 9, fill=DIMc)
     t("OUTPUT  ->  E:\\USER\\WEATHER.JSON", 24, 480, 9, fill=DIMc)
     t("SYNC INCLUDES: OPEN-METEO WEATHER + NOAA SWPC SPACE WX", 24, 494, 9, fill=DIMc)
@@ -637,7 +640,7 @@ def render_gui():
            "Sync includes Open-Meteo weather + NOAA SWPC space weather.",
            "DEVICE PREVIEW tab mirrors the on-device screen.",
            "==== DEVICE INSTALL / UPDATE ====",
-           "  > installing 3 app file(s) ...",
+           "  > installing 2 app file(s) ...",
            "DEVICE UPDATE COMPLETE - app files plus 4 location(s) cached."]
     for i, line in enumerate(log):
         t(line, 22, 604 + i * 15, 9, fill=GREEN)
