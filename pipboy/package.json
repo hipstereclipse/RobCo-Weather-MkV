@@ -1,0 +1,12 @@
+{
+  "name": "Weather",
+  "id": "weather",
+  "version": "1.0.0",
+  "author": "@hipstereclipse",
+  "description": "Cached weather and space-weather terminal for the Pip-Boy 3000 Mk V.",
+  "type": "app",
+  "icon": "assets/icon.png",
+  "storage": [
+    { "name": "USER/WEATHER.js", "url": "WEATHER.min.js" }
+  ]
+}

@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # ============================================================================
-#  HOLOTAPE ICON GENERATOR  (Pip-Boy 3000 weather app)
-#  Renders a Fallout-style holotape and writes it as an Espruino 1-bpp image
-#  file (the format referenced by APPINFO/<APP>.info "icon").
+#  ICON GENERATOR  (Pip-Boy 3000 Mk V weather app)
+#  Renders the same Fallout-style holotape design the 3000 build used, but
+#  writes it as the PNG registry icon referenced by pipboy/package.json
+#  ("icon": "assets/icon.png"). The Mk V app list has no holotape .IMG icons,
+#  so the 1-bpp Espruino image output was retired with the Mk V port.
 #
-#  Espruino image format:  byte0=width, byte1=height, byte2=bpp,
-#  then pixel bits packed MSB-first, continuous (no per-row padding).
+#  Usage:  python make_icon.py [WIDTH HEIGHT [SCALE]]   (default 48 48 4)
+#          WIDTH/HEIGHT are the base pixel-art grid; SCALE multiplies it up
+#          for a crisp PNG (default 48x48 grid -> 192x192 PNG).
+#  Output: ../pipboy/assets/icon.png  (+ an ASCII preview to stdout)
 #
-#  Usage:  python make_icon.py [WIDTH HEIGHT]      (default 48 48)
-#  Output: ../pipboy/APPINFO/WEATHER.IMG  (+ an ASCII preview to stdout)
-#
-#  If your firmware expects a different icon size, just pass new dimensions.
+#  Requires Pillow:  pip install pillow
 # ============================================================================
 
 import math
@@ -18,7 +19,11 @@ import os
 import sys
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                   "..", "pipboy", "APPINFO", "WEATHER.IMG")
+                   "..", "pipboy", "assets", "icon.png")
+
+# phosphor-green-on-black, matching the device palette in render_preview.py
+BG = (4, 20, 10)
+FG = (26, 255, 128)
 
 
 def make_grid(w, h):
@@ -172,23 +177,22 @@ def draw_holotape(w, h):
     return g
 
 
-def pack(grid):
+def save_png(grid, scale, path):
+    try:
+        from PIL import Image
+    except ImportError:
+        sys.exit("make_icon.py needs Pillow for PNG output: "
+                 "python -m pip install pillow")
     w, h = len(grid[0]), len(grid)
-    bits = []
-    for row in grid:
-        bits.extend(row)
-    out = bytearray([w & 0xFF, h & 0xFF, 1])  # width, height, bpp=1
-    acc = 0
-    nbits = 0
-    for b in bits:
-        acc = (acc << 1) | (b & 1)
-        nbits += 1
-        if nbits == 8:
-            out.append(acc)
-            acc, nbits = 0, 0
-    if nbits:
-        out.append(acc << (8 - nbits))
-    return bytes(out)
+    img = Image.new("RGB", (w, h), BG)
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            if grid[y][x]:
+                px[x, y] = FG
+    img = img.resize((w * scale, h * scale), Image.NEAREST)
+    img.save(path)
+    return img.size
 
 
 def preview(grid):
@@ -198,16 +202,17 @@ def preview(grid):
 
 def main():
     w = h = 48
+    scale = 4
     if len(sys.argv) >= 3:
         w, h = int(sys.argv[1]), int(sys.argv[2])
+    if len(sys.argv) >= 4:
+        scale = int(sys.argv[3])
     grid = draw_holotape(w, h)
     preview(grid)
-    data = pack(grid)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "wb") as f:
-        f.write(data)
-    print("\nwrote %s  (%dx%d, 1bpp, %d bytes)"
-          % (os.path.normpath(OUT), w, h, len(data)))
+    pw, ph = save_png(grid, scale, OUT)
+    print("\nwrote %s  (%dx%d grid -> %dx%d PNG, %d bytes)"
+          % (os.path.normpath(OUT), w, h, pw, ph, os.path.getsize(OUT)))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,18 @@
+1.0.0 (2026-07-11)
+https://github.com/hipstereclipse/RobCo-Weather-MkV
+- Port RobCo Weather from the Pip-Boy 3000 (hipstereclipse/Robco-Weather) to
+  the Pip-Boy 3000 Mk V. Features, views, strings, data format, and the
+  companion's fetch logic are unchanged.
+- App ships as USER/WEATHER.js (Form A closure, unchanged shape); all content
+  re-flowed into the Mk V visible window x in [38, 438] on the 480x320 surface.
+- Graphics resolved through the h / bC / g resolver so the app runs under the
+  loader and against the raw firmware buffers.
+- Pip.playSound("SCROLL"/"TAB") is now feature-detected with a
+  Pip.knob1Click/Pip.knob2Click fallback; remove() additionally calls
+  Pip.audioStop().
+- Metadata moved from APPINFO/WEATHER.info to package.json (registry) plus an
+  optional on-card APPINFO/weather.json friendly name.
+- 1-bpp holotape icon APPINFO/WEATHER.IMG replaced by a PNG registry icon
+  (assets/icon.png); make_icon.py now emits the PNG.
+- Narrower window trims some cut() limits: ATMOS condition 18->15, detail
+  strips 36->31, aurora Kp-slot label 24->15.
