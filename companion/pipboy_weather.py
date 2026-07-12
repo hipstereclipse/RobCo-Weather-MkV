@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================================
-#  PIP-BOY 3000 WEATHER COMPANION
+#  PIP-BOY 3000 MK V WEATHER COMPANION
 #  Fetches current conditions + a 5-day forecast for any locations on Earth
 #  and writes a compact WEATHER.JSON to your Pip-Boy's SD card. The on-device
 #  app then displays this cached data with no network required.
@@ -56,20 +56,22 @@ DEVICE_JSON_LIMIT = 5600
 
 # Each device app file: where it lives inside an app-source tree (parts under
 # the source root) and where it must land on the SD card (parts under <SD>).
+# The Mk V loads apps from USER/<id>.js; the shipped file is the minified
+# build. APPINFO/weather.json is optional metadata giving the app a friendly
+# name in INV > APPS.
 APP_FILES = [
-    (("pipboy", "APPS", "WEATHER.JS"),       ("APPS", "WEATHER.JS")),
-    (("pipboy", "APPINFO", "WEATHER.info"),  ("APPINFO", "WEATHER.info")),
-    (("pipboy", "APPINFO", "WEATHER.IMG"),   ("APPINFO", "WEATHER.IMG")),
+    (("pipboy", "WEATHER.min.js"),           ("USER", "WEATHER.js")),
+    (("pipboy", "APPINFO", "weather.json"),  ("APPINFO", "weather.json")),
 ]
 
 # Where "install latest" pulls the app files from. The slug is auto-detected
 # from this checkout's git remote when possible, with this as the fallback.
-GITHUB_DEFAULT_SLUG = "hipstereclipse/Robco-Weather"
+GITHUB_DEFAULT_SLUG = "hipstereclipse/RobCo-Weather-MkV"
 GITHUB_BRANCH = "main"
 
 # SD-relative paths an install can leave behind, used when cleaning up /
 # uninstalling: the app files plus every WEATHER.JSON variant the device app
-# looks for (see PATHS in pipboy/APPS/WEATHER.JS).
+# looks for (see PATHS in pipboy/WEATHER.js).
 APP_FILE_REL = [os.path.join(*sd_parts) for _, sd_parts in APP_FILES]
 DATA_FILE_REL = [os.path.join("USER", "WEATHER.JSON"),
                  "WEATHER.JSON",
@@ -451,8 +453,8 @@ def github_raw_base(branch=GITHUB_BRANCH):
 def find_app_files(source_dir):
     """Locate the device app files inside a local folder.
 
-    Accepts the project layout (<root>/pipboy/APPS/WEATHER.JS), the on-SD app
-    layout (<root>/APPS/WEATHER.JS), or the files sitting directly in <root>.
+    Accepts the project layout (<root>/pipboy/WEATHER.min.js), the on-SD app
+    layout (<root>/USER/WEATHER.js), or the files sitting directly in <root>.
     Returns [(abs_src, sd_rel_path)]; raises if any file is missing.
     """
     root = os.path.abspath(os.path.expanduser((source_dir or "").strip()))
@@ -736,9 +738,10 @@ def do_usb_sync(cfg, install=False, port=None):
     """Fetch live data and send it to a USB-connected Pip-Boy.
 
     Data is written to USER/WEATHER.JSON on the card - exactly where the
-    on-device app looks. With install=True the app files (WEATHER.JS +
-    APPINFO/*) are sent too, pulled from the same source the SD install uses
-    (GitHub, or the local app-source folder in the config).
+    on-device app looks. With install=True the app files (WEATHER.min.js ->
+    USER/WEATHER.js + APPINFO/weather.json) are sent too, pulled from the same
+    source the SD install uses (GitHub, or the local app-source folder in the
+    config).
     """
     if not cfg["locations"]:
         print("  ! no locations configured. Add some first.")
@@ -828,8 +831,8 @@ def do_usb_sync(cfg, install=False, port=None):
     if not payload.get("space"):
         print("  (space-weather endpoints were unavailable; weather data was still sent)")
     if install or install_latest:
-        print("  > app files sent - reboot the Pip-Boy so it lists the app, then")
-        print("    open Weather. A data-only sync (--usb) just needs the app reopened.")
+        print("  > app files sent - reboot the Pip-Boy so INV > APPS lists the app,")
+        print("    then open Weather. A data-only sync (--usb) just needs the app reopened.")
     else:
         print("  > done - open (or reopen) the Weather app on the Pip-Boy.")
 
@@ -938,7 +941,7 @@ def interactive(cfg):
 
 # ------------------------------------------------------------------- main ----
 def main():
-    ap = argparse.ArgumentParser(description="Pip-Boy 3000 weather companion.")
+    ap = argparse.ArgumentParser(description="Pip-Boy 3000 Mk V weather companion.")
     ap.add_argument("--fetch", action="store_true", help="fetch + write, no menu")
     ap.add_argument("--add", metavar="QUERY", help="add first geocode match for QUERY")
     ap.add_argument("--sd", metavar="PATH", help="set SD card root path")

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # ============================================================================
-#  PIP-BOY 3000 USB TRANSFER  (companion helper)
+#  PIP-BOY 3000 MK V USB TRANSFER  (companion helper)
 #
-#  Pushes files straight to a USB-connected Pip-Boy 3000 - no need to pop the
-#  microSD card out. The weather app reads the freshly-written cache the next
-#  time you open it.
+#  Pushes files straight to a USB-connected Pip-Boy 3000 Mk V - no need to pop
+#  the microSD card out. The weather app reads the freshly-written cache the
+#  next time you open it.
 #
 #  HOW IT WORKS / WHY SERIAL (not a USB drive)
 #  -------------------------------------------
-#  The Pip-Boy 3000 does NOT present its SD card as a USB mass-storage drive
-#  when you plug it in. Like the Mk V, it runs Espruino on an STM32 and exposes
-#  a JavaScript console over a USB-C serial (CDC) link - the same link The Wand
+#  The Pip-Boy 3000 Mk V does NOT present its SD card as a USB mass-storage
+#  drive when you plug it in. It runs Espruino on an STM32 and exposes a
+#  JavaScript console over a USB-C serial (CDC) link - the same link The Wand
 #  Company's web updater and the Espruino Web IDE use. Files on the card live on
-#  a FAT32 filesystem reachable from that console through Espruino's `fs` module.
+#  a FAT filesystem reachable from that console through Espruino's `fs` module.
 #
 #  So instead of copying a file onto a mounted drive, we open the serial port
 #  and ask the device to write the file itself:

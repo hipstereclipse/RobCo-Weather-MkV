@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # ============================================================================
-#  PIP-BOY 3000 WEATHER COMPANION - graphical interface
+#  PIP-BOY 3000 MK V WEATHER COMPANION - graphical interface
 #  A modern, Pip-Boy-themed desktop UI over the same engine as the CLI.
 #  Pure standard library (Tkinter) - no packages to install.
 #
 #  Two tabs:
 #    RELAY CONTROL  - manage locations, settings, fetch + install to the device
-#    DEVICE PREVIEW - shows EXACTLY what the on-device app (WEATHER.JS) will
+#    DEVICE PREVIEW - shows EXACTLY what the on-device app (WEATHER.js) will
 #                     display for the synced data: the ATMOS / 5-DAY / SOLAR
 #                     screens, redrawn on a Tk canvas (no Pillow needed).
 #
@@ -72,9 +72,12 @@ USB_BUSY_LABEL = "SENDING USB DATA ..."
 USB_INSTALL_LABEL = "USB INSTALL + DATA"
 USB_INSTALL_BUSY_LABEL = "INSTALLING VIA USB ..."
 
-# --- device logical screen (the Pip-Boy 3000 runs LANDSCAPE ~480x320) -------
+# --- device logical screen (the Pip-Boy 3000 Mk V runs LANDSCAPE 480x320;
+# the case shroud hides x < 38 and x > 438, so only a 400px-wide window of
+# the surface is visible - the preview masks the hidden bands) ---------------
 DEV_W, DEV_H = 480, 320
-CORN = 56                      # horizontal inset matching WEATHER.JS' CORN
+VIS_X0, VIS_X1 = 38, 438       # visible window matching WEATHER.js
+CORN = 56                      # horizontal inset matching WEATHER.js' CORN
 STALE_HOURS = 12
 TABS = ["ATMOS", "5-DAY", "SOLAR"]
 F_BIG, F_HEAD, F_SMALL, F_TINY = 56, 24, 16, 12   # logical font tiers
@@ -293,7 +296,7 @@ class DeviceCanvas(tk.Canvas):
 
     # --- chrome ------------------------------------------------------------
     def hr(self, y):
-        self.line(12, y, DEV_W - 12, y)
+        self.line(40, y, 436, y)
 
     def box(self, x0, y0, x1, y1, label):
         self.rect(x0, y0, x1, y1)
@@ -319,9 +322,10 @@ class DeviceCanvas(tk.Canvas):
         self.text(value, x, y + 17, F_SMALL, ax=0, ay=0)
 
     def msg(self, a, b=None):
-        self.text(a, DEV_W / 2, DEV_H / 2 - 18, F_HEAD, ax=0, ay=0)
+        cx = (VIS_X0 + VIS_X1) / 2
+        self.text(a, cx, DEV_H / 2 - 18, F_HEAD, ax=0, ay=0)
         if b:
-            self.text(b, DEV_W / 2, DEV_H / 2 + 20, F_SMALL, ax=0, ay=0, fill=DDIM)
+            self.text(b, cx, DEV_H / 2 + 20, F_SMALL, ax=0, ay=0, fill=DDIM)
 
     def header(self):
         d = self.payload
@@ -338,7 +342,7 @@ class DeviceCanvas(tk.Canvas):
     def footer(self):
         y = DEV_H - 16
         self.hr(y - 4)
-        self.text("WHEEL:SITE  THUMB:PAGE  ITEMS:EXIT", CORN, y, F_TINY)
+        self.text("WHEEL:SITE  THUMB:PAGE  DIAL:EXIT", CORN, y, F_TINY)
         gen = self.payload.get("generated", "")
         st = self.stale()
         self.text(("! " if st else "UPD ") + stamp(gen), DEV_W - CORN, y,
@@ -354,9 +358,9 @@ class DeviceCanvas(tk.Canvas):
 
     def tabs(self):
         y = 58
-        bw = (DEV_W - 24) / len(TABS)
+        bw = (DEV_W - 84) / len(TABS)
         for i, t in enumerate(TABS):
-            x0 = 12 + i * bw
+            x0 = 40 + i * bw
             col = DHOT if i == self.tab else DDIM
             if i == self.tab:
                 self.rect(x0 + 3, y, x0 + bw - 3, y + 15, fill=DHOT)
@@ -438,33 +442,33 @@ class DeviceCanvas(tk.Canvas):
         unit = d.get("units", {}).get("temp", "F")
         d0 = (loc.get("daily") or [{}])[0]
         item = min(self.item, 3)
-        self.box(14, 88, 236, 255, "LOCAL ATMOS")
-        self.box(248, 88, DEV_W - 14, 255, "INSTRUMENTS")
+        self.box(40, 88, 232, 255, "LOCAL ATMOS")
+        self.box(240, 88, 436, 255, "INSTRUMENTS")
 
-        self.draw_icon(c.get("code", 0), 70, 135, 24, c.get("is_day", 1))
+        self.draw_icon(c.get("code", 0), 78, 135, 24, c.get("is_day", 1))
         self.text(rd(c.get("temp")), 118, 145, F_BIG, ax=-1, ay=0, bold=True)
-        self.circle(205 + 5, 124 + 4, 4)
-        self.text(unit, 205 + 14, 124 + 6, F_TINY, ax=-1, ay=0)
+        self.circle(200 + 5, 124 + 4, 4)
+        self.text(unit, 200 + 14, 124 + 6, F_TINY, ax=-1, ay=0)
 
-        self.text("> CONDITION", 24, 184, F_TINY, fill=DDIM)
+        self.text("> CONDITION", 50, 184, F_TINY, fill=DDIM)
         if c.get("time"):
-            self.text("OBS " + stamp(c["time"]), 226, 184, F_TINY, ax=1, fill=DDIM)
-        self.text((c.get("desc") or "--").upper()[:18], 24, 203, F_SMALL)
-        self.metric("HI", rd(d0.get("hi")), 52, 224)
-        self.metric("LO", rd(d0.get("lo")), 114, 224)
-        self.metric("RAIN", rd(d0.get("pop")) + "%", 186, 224)
+            self.text("OBS " + stamp(c["time"]), 222, 184, F_TINY, ax=1, fill=DDIM)
+        self.text((c.get("desc") or "--").upper()[:15], 50, 203, F_SMALL)
+        self.metric("HI", rd(d0.get("hi")), 72, 224)
+        self.metric("LO", rd(d0.get("lo")), 126, 224)
+        self.metric("RAIN", rd(d0.get("pop")) + "%", 188, 224)
 
-        xL, xR = 260, DEV_W - 26
+        xL, xR = 252, 424
         rows = [(104, 126), (138, 160), (172, 200), (212, 240)]
         y0, y1 = rows[item]
-        self.rect(254, y0, DEV_W - 20, y1, fill=DHOT)
+        self.rect(246, y0, 430, y1, fill=DHOT)
         self.stat_row("FEELS", rd(c.get("feels")) + unit, xL, xR, 112)
         self.stat_row("WIND", rd(c.get("wind")) + (" " + c["dir"] if c.get("dir") else ""),
                       xL, xR, 146)
         self.stat_row("HUMID", rd(c.get("humidity")) + "%", xL, xR, 180)
-        self.gauge(xL, 192, DEV_W - 286, c.get("humidity"), 100)
+        self.gauge(xL, 192, 172, c.get("humidity"), 100)
         self.stat_row("RAD UV", rd(c.get("uv")), xL, xR, 220)
-        self.gauge(xL, 232, DEV_W - 286, c.get("uv"), 11)
+        self.gauge(xL, 232, 172, c.get("uv"), 11)
 
         if item == 0:
             detail = "FEELS %s%s  ACTUAL %s%s" % (rd(c.get("feels")), unit,
@@ -478,18 +482,18 @@ class DeviceCanvas(tk.Canvas):
         else:
             detail = "UV %s  %s" % (rd(c.get("uv")),
                                     solar_line(d, loc) or "SOLAR QUIET")
-        self.box(14, 262, DEV_W - 14, 286, "SELECTED TELEMETRY")
+        self.box(40, 262, 436, 286, "SELECTED TELEMETRY")
         hot = item == 3 and solar_active(d.get("space"))
-        self.text(detail[:36], 24, 274, F_SMALL, ay=0, fill=DHOT if hot else DFG)
+        self.text(detail[:31], 50, 274, F_SMALL, ay=0, fill=DHOT if hot else DFG)
 
     def view_forecast(self, loc):
         days = (loc.get("daily") or [])[:5]
         item = min(self.item, max(0, len(days) - 1))
-        self.box(14, 88, DEV_W - 14, 222, "FORECAST BUFFER")
-        self.text("5 ENTRIES  //  HI/LO  //  PRECIP CHANCE", 26, 103, F_TINY, fill=DDIM)
-        colW = (DEV_W - 24) / 5
+        self.box(40, 88, 436, 222, "FORECAST BUFFER")
+        self.text("5 ENTRIES  //  HI/LO  //  PRECIP CHANCE", 52, 103, F_TINY, fill=DDIM)
+        colW = (DEV_W - 84) / 5
         for i, dday in enumerate(days):
-            x = 12 + colW * i
+            x = 40 + colW * i
             cx = x + colW / 2
             if i > 0:
                 self.line(x, 126, x, 216, fill=DDIM)
@@ -502,13 +506,13 @@ class DeviceCanvas(tk.Canvas):
                       rd(dday.get("pop"))), cx, 207, F_TINY, ax=0)
 
         dday = days[item] if days else {}
-        self.box(14, 232, DEV_W - 14, 286, "ENTRY DETAIL")
+        self.box(40, 232, 436, 286, "ENTRY DETAIL")
         self.text(("%s  %s" % (dday.get("date", dday.get("d", "?")),
-                  (dday.get("desc") or "--").upper()))[:36],
-                  24, 251, F_SMALL)
+                  (dday.get("desc") or "--").upper()))[:31],
+                  50, 251, F_SMALL)
         self.text("HI/LO %s/%s" % (rd(dday.get("hi")), rd(dday.get("lo"))),
-                  24, 276, F_SMALL, ax=-1, ay=0)
-        self.text("RAIN %s%%" % rd(dday.get("pop")), DEV_W - 24, 276,
+                  50, 276, F_SMALL, ax=-1, ay=0)
+        self.text("RAIN %s%%" % rd(dday.get("pop")), 426, 276,
                   F_SMALL, ax=1, ay=0)
 
     def kp_graph(self, sp, loc, x0, y0, x1, y1, selected=0):
@@ -554,31 +558,31 @@ class DeviceCanvas(tk.Canvas):
         if not sp:
             self.msg("NO SPACE WX DATA", "SYNC COMPANION")
             return
-        self.box(14, 88, 238, 240, "ROBCO SOLAR RELAY")
-        self.box(250, 88, DEV_W - 14, 240, "KP BUFFER")
-        self.stat_row("FLARE", sp.get("flare", "NONE"), 26, 226, 114)
+        self.box(40, 88, 232, 240, "ROBCO SOLAR RELAY")
+        self.box(240, 88, 436, 240, "KP BUFFER")
+        self.stat_row("FLARE", sp.get("flare", "NONE"), 52, 220, 114)
         self.stat_row("R/S/G", "%s %s %s" % (sp.get("r_scale", "R0"),
-                      sp.get("s_scale", "S0"), sp.get("g_scale", "G0")), 26, 226, 150)
+                      sp.get("s_scale", "S0"), sp.get("g_scale", "G0")), 52, 220, 150)
         self.stat_row("KP NOW/PK", "%s / %s" % (sp.get("kp_now", "--"),
-                      sp.get("kp_peak", "--")), 26, 226, 186)
-        self.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 26, 220, F_TINY, fill=DDIM)
+                      sp.get("kp_peak", "--")), 52, 220, 186)
+        self.text((sp.get("g_text") or "FIELD QUIET").upper()[:25], 52, 220, F_TINY, fill=DDIM)
         selected = min(self.item, max(0, len(sp.get("kpf") or []) - 1))
-        self.text("KP FORECAST UTC", 262, 106, F_TINY, fill=DDIM)
-        self.kp_graph(sp, loc, 286, 124, DEV_W - 26, 218, selected)
+        self.text("KP FORECAST UTC", 252, 106, F_TINY, fill=DDIM)
+        self.kp_graph(sp, loc, 274, 124, 424, 218, selected)
 
-        self.box(14, 250, DEV_W - 14, 294, "AURORA ESTIMATE")
+        self.box(40, 250, 436, 294, "AURORA ESTIMATE")
         au = loc.get("aurora", {}) or {}
-        self.text("AURORA @ " + (loc.get("name") or "").upper()[:18], 24, 268,
+        self.text("AURORA @ " + (loc.get("name") or "").upper()[:18], 50, 268,
                   F_TINY, ax=-1, ay=0)
         chance = au.get("chance", "UNKNOWN")
-        self.text(chance, DEV_W - 24, 268, F_HEAD, ax=1, ay=0, bold=True,
+        self.text(chance, 426, 268, F_HEAD, ax=1, ay=0, bold=True,
                   fill=DHOT if chance in ("LIKELY", "POSSIBLE") else DFG)
         kpf = sp.get("kpf") or []
         kv = kpf[selected] if kpf else "--"
-        self.text(("%s  KP %s" % (kp_label(sp, selected), kv))[:24],
-                  24, 286, F_SMALL, ax=-1, ay=0)
+        self.text(("%s  KP %s" % (kp_label(sp, selected), kv))[:15],
+                  50, 286, F_SMALL, ax=-1, ay=0)
         self.text("NEED %s PK %s" % (au.get("needed", "?"), au.get("maxkp", "?")),
-                  DEV_W - 24, 286, F_SMALL, ax=1, ay=0)
+                  426, 286, F_SMALL, ax=1, ay=0)
 
     # --- compositing -------------------------------------------------------
     def _scanlines(self):
@@ -586,6 +590,11 @@ class DeviceCanvas(tk.Canvas):
         while y < DEV_H - 4:
             self.line(6, y, DEV_W - 6, y, fill=SCAN, w=1)
             y += 4
+
+    def _shroud(self):
+        """Mask the side bands the Mk V case shroud hides (x<38 and x>438)."""
+        self.frect(0, 0, VIS_X0, DEV_H, fill=BG)
+        self.frect(VIS_X1, 0, DEV_W, DEV_H, fill=BG)
 
     def redraw(self):
         self.delete("all")
@@ -602,6 +611,7 @@ class DeviceCanvas(tk.Canvas):
         d = self.payload
         if not d or not d.get("locations"):
             self.msg("NO WEATHER DATA", "RUN A FETCH TO PREVIEW")
+            self._shroud()
             return
         if self.loc >= len(d["locations"]):
             self.loc = 0
@@ -617,6 +627,7 @@ class DeviceCanvas(tk.Canvas):
         else:
             self.view_space(loc)
         self.footer()
+        self._shroud()
 
 
 # ============================================================================

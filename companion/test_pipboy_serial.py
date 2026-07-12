@@ -216,9 +216,9 @@ def main():
     p = tempfile.mktemp()
     with open(p, "wb") as f:
         f.write(raw)
-    pbs.transfer_files([(p, "APPINFO/WEATHER.IMG")], port="COM_TEST")
+    pbs.transfer_files([(p, "USER/WEATHER.BIN")], port="COM_TEST")
     os.remove(p)
-    assert _LAST[0].fs["APPINFO/WEATHER.IMG"] == raw, "binary mismatch"
+    assert _LAST[0].fs["USER/WEATHER.BIN"] == raw, "binary mismatch"
     print("   ok - 768 binary bytes round-tripped exactly")
 
     print("4) auto-detect picks the PIPBOY port by probing ...")
@@ -269,19 +269,17 @@ def main():
 
     print("9) scan_files() reports missing and present app files ...")
     _INITIAL_FS[0] = {
-        "APPS/WEATHER.JS": b"app",
-        "APPINFO/WEATHER.info": b"info",
+        "USER/WEATHER.js": b"app",
     }
     scan = pbs.scan_files([
-        "APPS/WEATHER.JS",
-        "APPINFO/WEATHER.info",
-        "APPINFO/WEATHER.IMG",
+        "USER/WEATHER.js",
+        "APPINFO/weather.json",
     ], port="COM_TEST")
     assert scan["port"] == "COM_TEST"
     assert scan["board"] == "PIPBOY"
-    assert scan["missing"] == ["APPINFO/WEATHER.IMG"], scan
+    assert scan["missing"] == ["APPINFO/weather.json"], scan
     assert scan["files"][0]["exists"] is True
-    assert scan["files"][2]["exists"] is False
+    assert scan["files"][1]["exists"] is False
     print("   ok - missing: %s" % ", ".join(scan["missing"]))
     _INITIAL_FS[0] = {}
 
